@@ -11,8 +11,6 @@
 #include "SimHash.h"
 #include "Results.h"
 
-//using std::vector;
-//using std::string;
 using namespace std;
  
 // NOTE: Do not allow the last x bits to match the first x for x > 2
@@ -95,6 +93,7 @@ bool CTags::ReadTagFile(char* szFilePath)
 				&(m_pTags[i].nWeight)) != 3 )
 			break;
 		
+		m_pTags[i].dwOrigTag = m_pTags[i].dwTag;
 		FixTag( &(m_pTags[i]) );
 		// (*ppOutTags)[i].nIgnore is zero'd by calloc
 	}
@@ -324,6 +323,14 @@ int main(int argc, char* const argv[])
 	{
 		case 1:	// SQL
 			pResults = new CResultsSQL(pTags->GetTagCount());
+			if (strlen(szStore) == 0)
+			{
+				strcpy(szStore, szTagFile);
+				char* szEnd = strrchr(szStore, '.');
+				if (szEnd != NULL)
+					szEnd[0] = 0;
+			}//szStore is now the name of the table
+			//else add tags from TagFile to szStore table
 			break;
 		case 2: // CSV
 			pResults = new CResultsCSV(pTags->GetTagCount());
@@ -334,7 +341,7 @@ int main(int argc, char* const argv[])
 	}
 
 	// Compute SimHash for each file in directory
-	if (pResults->OpenStore(szStore))
+	if (pResults->OpenStore(szStore, pTags))
 	{
 		ProcessDir(szDirectory, pTags, pResults);
 		pResults->CommitStore();
@@ -343,56 +350,7 @@ int main(int argc, char* const argv[])
 	delete pTags;
 	delete pResults;
 
-//	std::cout << "Hello, World!\n";
 	return 0; // success
 }
 
 
-/////////////////////////////////////////////////////////////////////////////
-// SQL Code
-
-/*
-try {
-        // Establish the connection to the database server.
-        mysqlpp::Connection con(mysqlpp::use_exceptions);
-        if (!connect_to_db(argc, argv, con)) {
-            return 1;
-        }
-
-        // Show initial state
-        mysqlpp::Query query = con.query();
-        cout << "Initial state of stock table:" << endl;
-        print_stock_table(query);
-
-        // Insert a few rows in a single transaction set
-        {
-            mysqlpp::Transaction trans(con);
-
-			for (all of the files){
-            stock row1("Sauerkraut", 42, 1.2, 0.75, "2006-03-06");
-            query.insert(row1);
-            query.execute();
-            query.reset();
-			}
-            trans.commit();
-        }
-    catch (const mysqlpp::BadQuery& er) {
-        // Handle any query errors
-        cerr << "Query error: " << er.what() << endl;
-        return -1;
-    }
-    catch (const mysqlpp::BadConversion& er) {  
-        // Handle bad conversions
-        cerr << "Conversion error: " << er.what() << endl <<
-                "\tretrieved data size: " << er.retrieved <<
-                ", actual size: " << er.actual_size << endl;
-        return -1;
-    }
-    catch (const mysqlpp::Exception& er) {
-        // Catch-all for any other MySQL++ exceptions
-        cerr << "Error: " << er.what() << endl;
-        return -1;
-    }
-
-    return 0;
-*/

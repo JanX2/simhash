@@ -29,6 +29,7 @@ typedef struct BINTAG
 	int   nWeight;   // coefficient in linear combo of hit sums
 	int   nLength;   // bit length straight up
 	int   nIgnore;   // number of future bits to ignore
+	DWORD dwOrigTag; // unmodified tag value
 }	BINTAG;
 
 

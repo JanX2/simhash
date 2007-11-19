@@ -46,24 +46,6 @@ void CResults::CloseFile()
 {
 	if (strlen(m_szFileName) == 0)
 		return;
-/*
-	// Make file name exactly 15 characters
-	char szTruncName[MAX_PATH];
-	ExtractFilename(m_szFileName, szTruncName);
-	szTruncName[16] = 0;
-	int nTrunc = (int) strlen(szTruncName);
-	while (nTrunc < 16)
-	{
-		strcat(szTruncName, " ");
-		nTrunc++;
-	}
-
-	// Output results row to console
-	printf("%s  ", szTruncName);
-	for (int i = 0; i < m_nTags; i++)
-		printf("%8d ", m_pnSumTable[i]);
-	printf("\n");
-*/
 	FormatRowBufferTxt();
 	printf("%s", m_szRowBuffer);
 }	// CResults::CloseFile
@@ -104,16 +86,16 @@ void CResults::FormatRowBufferTxt()
 }	// CResults::FormatRowBufferTxt
 
 
-void CResults::ExtractFilename(char* szPath, char* szFile)
+void CResults::ExtractFilename(char* szPath, char* szOutFile)
 {
 	char* szPtr = strrchr(szPath, '\\');
 	if (szPtr == NULL)
 		szPtr = strrchr(szPath, '/');
 
 	if (szPtr == NULL)
-		strcpy(szFile, szPath);
+		strcpy(szOutFile, szPath);
 	else
-		strcpy(szFile, szPtr+1);
+		strcpy(szOutFile, szPtr+1);
 }	// CResults::ExtractFilename
 
 
@@ -121,10 +103,14 @@ void CResults::ExtractFilename(char* szPath, char* szFile)
 /////////////////////////////////////////////////////////////////////////////
 // CResultsSQL
 
+//a function which creates a table given some tags, or returns the matching one
+//a funciton which adds columns to a table
+
 CResultsSQL::CResultsSQL(int nTags) : CResults(nTags)
 {
 	m_dbcon = new mysqlpp::Connection(false);
 	m_dbcon.connect (MYSQL_DATABASE, MYSQL_HOST, MYSQL_USER, MYSQL_PASS );
+	m_pTags = NULL;
 }
 
 CResultsSQL::~CResultsSQL()
@@ -133,10 +119,18 @@ CResultsSQL::~CResultsSQL()
 }
 
 
-bool CResultsSQL::OpenStore(char* szName)
+bool CResultsSQL::OpenStore(char* szName, CTags* pTags)
 {
-	// TODO: Open table szName, begin transaction
+	if (!m_dbcon) return false;
+	
+	m_pTags = pTags;
+	
+	//open table szName 
+	// if it does not exist, create it and use the pTags.dwOrigTag as column names
+	// TODO: begin transaction
+	
 	return true;
+	
 }	// CResultsSQL::OpenStore
 
 
@@ -149,13 +143,13 @@ bool CResultsSQL::CommitStore()
 
 void CResultsSQL::NewFile(char* szFile)
 {
-	// TODO: Start row?
+	CResults::NewFile(szFile);
 }	// CResultsSQL::NewFile
 
 
 void CResultsSQL::CloseFile()
 {
-	// TODO: Write row
+	//store row to query contents of DWORD* m_pnSumTable; and m_szFileName;
 }	// CResultsSQL::CloseFile
 
 
@@ -173,7 +167,7 @@ CResultsCSV::~CResultsCSV()
 }
 
 
-bool CResultsCSV::OpenStore(char* szName)
+bool CResultsCSV::OpenStore(char* szName, CTags*)
 {
 	m_fp = fopen(szName, "wt");
 	if (m_fp == NULL)
