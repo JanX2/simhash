@@ -1,7 +1,16 @@
 #ifndef __RESULTS_H__
 #define __RESULTS_H__
 
+#include <mysql++.h>
+
 #include "SimHash.h"
+
+// MYSQL PARAMETERS
+#define MYSQL_HOST		"localhost"
+#define MYSQL_DATABASE  "simhash"
+#define MYSQL_USER		"simuser"
+#define MYSQL_PASS		""	
+
 
 /////////////////////////////////////////////////////////////////////////////
 // CResults
@@ -58,6 +67,7 @@ public:
 	void CloseFile();
 
 protected:
+	mysqlpp::Connection m_dbcon;
 	// TODO: db info
 };
 
