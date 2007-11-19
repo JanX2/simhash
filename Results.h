@@ -11,6 +11,7 @@
 #define MYSQL_USER		"simuser"
 #define MYSQL_PASS		""	
 
+class CTags;
 
 /////////////////////////////////////////////////////////////////////////////
 // CResults
@@ -28,7 +29,7 @@ public:
 	CResults(int nTags);
 	~CResults();
 
-	virtual bool OpenStore(char* szName) { return true; }
+	virtual bool OpenStore(char* , CTags* ) { return true; }
 	virtual bool CommitStore() { return true; }
 
 	virtual void NewFile(char* szFile);
@@ -61,13 +62,14 @@ public:
 	CResultsSQL(int nTags);
 	~CResultsSQL();
 
-	bool OpenStore(char* szName);
+	bool OpenStore(char* szName, CTags* pTags);
 	bool CommitStore();
 	void NewFile(char* szFile);
 	void CloseFile();
 
 protected:
 	mysqlpp::Connection m_dbcon;
+	CTags* m_pTags;
 	// TODO: db info
 };
 
@@ -83,7 +85,7 @@ public:
 	CResultsCSV(int nTags);
 	~CResultsCSV();
 
-	bool OpenStore(char* szName);
+	bool OpenStore(char* szName, CTags* );
 	bool CommitStore();
 	void CloseFile();
 
