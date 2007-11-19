@@ -2,6 +2,7 @@
 #define __RESULTS_H__
 
 #include <mysql++.h>
+#include <transaction.h>
 
 #include "SimHash.h"
 
@@ -39,7 +40,8 @@ public:
 protected:
 	int ComputeHashKey(CTags* pTags);
 	void FormatRowBufferTxt();
-	static void ExtractFilename(char* szPath, char* szFile);
+	static void ExtractFilename(char* szPath, char* szOutFile);
+	static void ExtractDirname(char* szPath, char* szOutDir);
 
 	char   m_szStoreName[MAX_PATH];
 	char   m_szFileName[MAX_PATH];
@@ -52,9 +54,7 @@ protected:
 
 /////////////////////////////////////////////////////////////////////////////
 // CResultsSQL
-/* This derivation of CResults dumps the results into a SQL table
-CAITLIN: Fill in these functions
-*/
+/* This derivation of CResults dumps the results into a SQL table */
 
 class CResultsSQL : public CResults
 {
@@ -64,12 +64,15 @@ public:
 
 	bool OpenStore(char* szName, CTags* pTags);
 	bool CommitStore();
-	void NewFile(char* szFile);
+	void NewFile(char* szFilepath);
 	void CloseFile();
 
 protected:
 	mysqlpp::Connection m_dbcon;
 	CTags* m_pTags;
+	mysqlpp::Transaction* m_currentTransaction;
+	char m_szTableName[MAX_PATH];
+	char m_szDirectory[MAX_PATH];
 	// TODO: db info
 };
 

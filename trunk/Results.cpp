@@ -98,58 +98,117 @@ void CResults::ExtractFilename(char* szPath, char* szOutFile)
 		strcpy(szOutFile, szPtr+1);
 }	// CResults::ExtractFilename
 
+void CResults::ExtractDirname(char* szPath, char* szOutDir)
+{
+	strcpy(szOutDir, szPath);
+	char* szPtr = strrchr(szPath, '\\');
+	if (szPtr == NULL)
+		szPtr = strrchr(szPath, '/');
+
+	if (szPtr != NULL)
+		szPtr[0] = 0;
+}	// CResults::ExtractDirname
 
 
 /////////////////////////////////////////////////////////////////////////////
 // CResultsSQL
 
-//a function which creates a table given some tags, or returns the matching one
-//a funciton which adds columns to a table
 
 CResultsSQL::CResultsSQL(int nTags) : CResults(nTags)
 {
-	m_dbcon = new mysqlpp::Connection(false);
+	m_dbcon = new mysqlpp::Connection(mysqlpp::use_exceptions);
 	m_dbcon.connect (MYSQL_DATABASE, MYSQL_HOST, MYSQL_USER, MYSQL_PASS );
 	m_pTags = NULL;
 }
 
 CResultsSQL::~CResultsSQL()
 {
+	delete m_currentTransaction;
 	m_dbcon.close();
 }
 
 
 bool CResultsSQL::OpenStore(char* szName, CTags* pTags)
 {
+	//if the connection was not properly established with the database, error
 	if (!m_dbcon) return false;
 	
+	//initialize tablename variable
+	strcpy(m_szTableName, szName); 
+	
+	//initialize m_pTags
 	m_pTags = pTags;
 	
-	//open table szName 
-	// if it does not exist, create it and use the pTags.dwOrigTag as column names
-	// TODO: begin transaction
+	//check if the table called szName exists
+	bool tableExists = false;
+	mysqlpp::Query query = m_dbcon.query();
+    query << "show tables";
+    mysqlpp::ResUse res = query.use();
+	if (res) {
+		mysqlpp::Row row;
+		while (row = res.fetch_row()) {
+			const string & currentTable = row.raw_string(0);
+			if (!strcmp(currentTable.c_str(), szName)){
+				tableExists = true;
+				break;
+			}
+		}
+	} else return false; //error with query
+
+	//if the table does not exist, then create it and populate the columns from pTags.dwOrigTag
+	if (!tableExists){
+		query.reset();
+		query << "create table " << szName << " (filename text; directoryname text; key int; " ;
+		for (int i = 0; i < m_nTags; i++){
+			query << m_pTags->GetTag(i)->dwOrigTag << " int; ";
+		}
+		query << ")";
+		if (!query.execute().success) return false;
+	}
 	
-	return true;
+	//start a new transaction object
+	m_currentTransaction = new mysqlpp::Transaction(m_dbcon);
 	
+	return true;	
 }	// CResultsSQL::OpenStore
 
 
 bool CResultsSQL::CommitStore()
 {
-	// TODO: commit transaction, close table
+	try{
+		m_currentTransaction->commit();
+	}catch (const mysqlpp::Exception& er){
+		return false;
+	}
 	return true;
 }	// CResultsSQL::CommitStore
 
 
 void CResultsSQL::NewFile(char* szFile)
-{
+{	
+	//initialize currentfilepath variable
+	strcpy(m_szDirectory, szFile); 
+	
 	CResults::NewFile(szFile);
 }	// CResultsSQL::NewFile
 
 
 void CResultsSQL::CloseFile()
 {
+	char* filename;
+	char* dirname;
+	ExtractFilename(m_szDirectory, filename);
+	ExtractDirname(m_szDirectory, dirname);
+	
+	mysqlpp::Query query = m_dbcon.query();
+	query << "insert into " << m_szTableName;
+	query << " values (" << filename << ", " << dirname << ", " << ComputeHashKey(m_pTags);
+	for (int i = 0; i < m_nTags; i++) {
+		query << ", " << m_pnSumTable[i];
+	}
+	query << ")";
 	//store row to query contents of DWORD* m_pnSumTable; and m_szFileName;
+	query.execute();
 }	// CResultsSQL::CloseFile
 
 
