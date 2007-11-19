@@ -1,12 +1,12 @@
- 
- 
+
 #define _CRT_SECURE_NO_WARNINGS
- 
+
 #include <iostream>
 #include <vector>
 #include <string>
 #include "SimHash.h"
- 
+#include "Results.h"
+
 using std::vector;
 using std::string;
  
@@ -17,30 +17,30 @@ using std::string;
 // Future improvemnet: store tag values in a bin search tree, so any given
 // bit pattern from the file can search the tree and quickly find the one
 // (if any) match
- 
+
 #define CHUNK_SIZE    4096 // size of file block to be read
- 
- 
+
+
 /////////////////////////////////////////////////////////////////////////////
 // CTags
- 
+
 CTags::CTags(char* szTagFile)
 {
 	// From: http://www.codeproject.com/cpp/endianness.asp
 	short word = 0x4321;
 	m_bBigEndian = ((*(char *)& word) != 0x21);
- 
+
 	m_pTags = NULL;
 	m_nTags = 0;
 	ReadTagFile(szTagFile);
 }
- 
+
 CTags::~CTags()
 {
 	free(m_pTags);
 }
- 
- 
+
+
 int CTags::MatchBitString(DWORD dwString)
 {
 	int nMatch = -1;
@@ -58,8 +58,8 @@ int CTags::MatchBitString(DWORD dwString)
 	}
 	return nMatch;
 }	// CTags::MatchBitString
- 
- 
+
+
 bool CTags::ReadTagFile(char* szFilePath)
 {
 	// Open tag file in text mode
@@ -69,7 +69,7 @@ bool CTags::ReadTagFile(char* szFilePath)
 		printf("ReadTagFile: failed to load %s\n", szFilePath);
 		return false;
 	}
- 
+
 	// Read tag count out of header
 	if ((fscanf(fp, "%d\n", &m_nTags) != 1) || (m_nTags <= 0))
 	{
@@ -77,7 +77,7 @@ bool CTags::ReadTagFile(char* szFilePath)
 		fclose(fp);
 		return false;
 	}
- 
+
 	// Read tags out of file, fill in BINTAG structs
 	m_pTags = (BINTAG*) calloc(m_nTags, sizeof(BINTAG));
 	int i;
@@ -89,11 +89,11 @@ bool CTags::ReadTagFile(char* szFilePath)
 				&(m_pTags[i].dwMask),
 				&(m_pTags[i].nWeight)) != 3 )
 			break;
- 
+		
 		FixTag( &(m_pTags[i]) );
 		// (*ppOutTags)[i].nIgnore is zero'd by calloc
 	}
- 
+
 	fclose(fp);
 	if (i < m_nTags) // loop broke early due to fscanf error
 	{
@@ -102,8 +102,8 @@ bool CTags::ReadTagFile(char* szFilePath)
 	}
 	return (i == m_nTags);
 }	// CTags::ReadTagFile
- 
- 
+
+
 // In order to read from left to right, we need to shift our bits to occupy the
 // k *most* significant bits of a DWORD instead of the k *least* significant.
 // On input, dwTag and dwMask should be filled in as read.  These get fixed,
@@ -117,142 +117,23 @@ void CTags::FixTag(BINTAG* pTag)
 		pTag->nLength++;
 		dwMask = dwMask >> 1;
 	}
- 
+
 	// Move bits
 	pTag->dwTag <<= (sizeof(DWORD)*8 - pTag->nLength);
 	pTag->dwMask <<= (sizeof(DWORD)*8 - pTag->nLength);
 }	// CTags::FixTag
- 
- 
+
+
 bool CTags::Compare(DWORD s1, DWORD s2, DWORD dwMask)
 {
 	return (s1 & dwMask) == (s2 & dwMask);
 }	// CTags::Compare
- 
- 
- 
-/////////////////////////////////////////////////////////////////////////////
-// CResults
- 
-CResults::CResults(int nTags)
-{
-	m_nTags = nTags;
-	m_pnSumTable = (DWORD*) calloc(nTags, sizeof(DWORD));
-	memset(m_szFileName, 0, MAX_PATH);
-}
- 
-CResults::~CResults()
-{
-	free(m_pnSumTable);
-}
- 
- 
-void CResults::NewFile(char* szFile)
-{
-	CloseFile();
- 
-	strcpy(m_szFileName, szFile);
-	memset(m_pnSumTable, 0, m_nTags*sizeof(DWORD));
-}	// CResults::NewFile
- 
- 
-void CResults::IncrTag(int nTag)
-{
-	m_pnSumTable[nTag]++;
-}	// CResults::IncrTag
- 
- 
-void CResults::CloseFile()
-{
-	if (strlen(m_szFileName) == 0)
-		return;
- 
-	// Make file name exactly 15 characters
-	char szTruncName[MAX_PATH];
-	ExtractFilename(m_szFileName, szTruncName);
-	szTruncName[16] = 0;
-	int nTrunc = (int) strlen(szTruncName);
-	while (nTrunc < 16)
-	{
-		strcat(szTruncName, " ");
-		nTrunc++;
-	}
- 
-	// Output results row to console
-	printf("%s  ", szTruncName);
-	for (int i = 0; i < m_nTags; i++)
-		printf("%8d ", m_pnSumTable[i]);
-	printf("\n");
-}	// CResults::CloseFile
- 
- 
-int CResults::ComputeHashKey(CTags* pTags)
-{
-	int nKey = 0;
-	for (int i = 0; i < m_nTags; i++)
-		nKey += (m_pnSumTable[i] * pTags->GetTag(i)->nWeight);
-	return nKey;
-}	// CResults::ComputeHashKey
- 
- 
-void CResults::ExtractFilename(char* szPath, char* szFile)
-{
-	char* szPtr = strrchr(szPath, '\\');
-	if (szPtr == NULL)
-		szPtr = strrchr(szPath, '/');
- 
-	if (szPtr == NULL)
-		strcpy(szFile, szPath);
-	else
-		strcpy(szFile, szPtr+1);
-}	// CResults::ExtractFilename
- 
- 
- 
-/////////////////////////////////////////////////////////////////////////////
-// CResultsSQL
- 
-CResultsSQL::CResultsSQL(int nTags) : CResults(nTags)
-{
-	// TODO: Open db?
-}
- 
-CResultsSQL::~CResultsSQL()
-{
-	// TODO: cleanup?
-}
- 
- 
-bool CResultsSQL::OpenStore(char* szName)
-{
-	// TODO: Open table szName, begin transaction
-	return true;
-}	// CResultsSQL::OpenStore
- 
- 
-bool CResultsSQL::CommitStore()
-{
-	// TODO: commit transaction, close table
-	return true;
-}	// CResultsSQL::CommitStore
- 
- 
-void CResultsSQL::NewFile(char* szFile)
-{
-	// TODO: Start row?
-}	// CResultsSQL::NewFile
- 
- 
-void CResultsSQL::CloseFile()
-{
-	// TODO: Write row
-}	// CResultsSQL::CloseFile
- 
- 
- 
+
+
+
 /////////////////////////////////////////////////////////////////////////////
 // Directory functions: OS -specific
- 
+
 #ifdef __APPLE__
 void GetDirList(char* szDir, std::vector<string> &vFiles)
 {
@@ -260,7 +141,7 @@ void GetDirList(char* szDir, std::vector<string> &vFiles)
 	struct dirent *dirp;
 	if((dp  = opendir(szDir) == NULL)
 		cout << "Error(" << errno << ") opening " << szDir << endl;
- 
+
 	while ((dirp = readdir(dp)) != NULL)
 	{
 		if (dirp->d_type == DT_REG) //only try to process regular files
@@ -292,7 +173,7 @@ void GetDirList(char* szDir, std::vector<string> &vFiles)
 		}
 		sprintf(szWildCard, "%s*", szDir);
 	}
- 
+
 	// Collect file names
 	WIN32_FIND_DATAA fileData;
 	HANDLE hFind = FindFirstFileA(szWildCard, &fileData);
@@ -310,16 +191,16 @@ void GetDirList(char* szDir, std::vector<string> &vFiles)
     FindClose(hFind);
 }	// GetDirList (Windows)
 #endif
- 
- 
- 
+
+
+
 /////////////////////////////////////////////////////////////////////////////
 // main() and subroutines
- 
+
 void ProcessChunk(BYTE* pChunk, int nChunkSize, CTags* pTags, CResults* pResults)
 {
 	// TODO: add code to properly check last few bytes
- 
+
 	//cycle through bytes 
 	DWORD dwString; // bit string currently being examined
 	int nTag;
@@ -329,7 +210,7 @@ void ProcessChunk(BYTE* pChunk, int nChunkSize, CTags* pTags, CResults* pResults
 		if (!pTags->IsBigEndian()) // reverse bytes
 			dwBlock = ( ((dwBlock&0x000000FF)<<24) + ((dwBlock&0x0000FF00)<<8) +
 						((dwBlock&0x00FF0000)>>8) + ((dwBlock&0xFF000000)>>24) );
- 
+
 		for (int bit = 0; bit < 8; bit++)
 		{
 			dwString = dwBlock << bit;
@@ -339,8 +220,8 @@ void ProcessChunk(BYTE* pChunk, int nChunkSize, CTags* pTags, CResults* pResults
 		}
 	}
 }	// ProcessChunk
- 
- 
+
+
 // ProcessFile() computes the hash and auxiliary count table for szFilePath
 bool ProcessFile(char* szFilePath, CTags* pTags, CResults* pResults)
 {
@@ -350,15 +231,15 @@ bool ProcessFile(char* szFilePath, CTags* pTags, CResults* pResults)
 		printf("ProcessFile: failed to load %s\n", szFilePath);
 		return false;
 	}
- 
+
 	// Compute file size
 	fseek(fp , 0 , SEEK_END);
 	int nSize = ftell(fp);
 	rewind(fp);
- 
+
 	// Start new "row" in pResults store
 	pResults->NewFile(szFilePath);
- 
+
 	BYTE* pBuf = (BYTE*) malloc(CHUNK_SIZE+8);
 	while (nSize > 4)
 	{
@@ -366,22 +247,23 @@ bool ProcessFile(char* szFilePath, CTags* pTags, CResults* pResults)
 		int nRead = min(nSize, CHUNK_SIZE);
 		nSize -= nRead;
 		fread(pBuf, 1, nRead, fp);
- 
+
 		//process contents of buffer
 		ProcessChunk(pBuf, nRead, pTags, pResults);
- 
+
 		//rewind the file pointer
 		int nPos = ftell(fp) - 4;
 		fseek (fp, nPos, SEEK_SET);
 		nSize +=4;
 	}
- 
+
+	pResults->CloseFile();
 	fclose(fp);
 	free(pBuf);
 	return true;
 }	// ProcessFile
- 
- 
+
+
 //This function should only be called with the pTags associated with
 // a given file
 bool ProcessDir(char* szDirName, CTags* pTags, CResults* pResults)
@@ -390,18 +272,18 @@ bool ProcessDir(char* szDirName, CTags* pTags, CResults* pResults)
 	std::vector<string> vFiles;
 	GetDirList(szDirName, vFiles);
 	char szFilePath[MAX_PATH];
- 
+
 	vector<string>::iterator iter = vFiles.begin();
 	for (; iter != vFiles.end(); iter++)
 	{
 		sprintf(szFilePath, "%s%s", szDirName, (*iter).c_str());
 		bRet &= ProcessFile(szFilePath, pTags, pResults);
 	}
- 
+
 	return bRet;
 }	// ProcessDir
- 
- 
+
+
 int main(int argc, char* const argv[])
 {
 	char szSimHashIni[MAX_PATH];
@@ -409,20 +291,20 @@ int main(int argc, char* const argv[])
 	int  nStoreType;
 	char szStore[MAX_PATH];
 	char szDirectory[MAX_PATH];
- 
+
 	// Read specs for run out of INI file
 	if (argc > 1)
 		strcpy(szSimHashIni, argv[1]);
 	else
 		sprintf(szSimHashIni, "SimHash.ini");
- 
+
 	FILE* fp = fopen(szSimHashIni, "rt");
 	if (fp == NULL)
 	{
 		printf("main: failed to load %s\n", szSimHashIni);
 		return 1;
 	}
- 
+
 	if ((fscanf(fp, "TagFile=%s\n", szTagFile) != 1) ||
 		(fscanf(fp, "StoreType=%d\n", &nStoreType) != 1) ||
 		(fscanf(fp, "Store=%s\n", szStore) != 1) ||
@@ -432,41 +314,41 @@ int main(int argc, char* const argv[])
 		return 1;
 	}
 	fclose(fp);
- 
+
 	// Set up CTags and CReport objects
 	CTags* pTags = new CTags(szTagFile);
 	CResults* pResults = NULL;
 	switch (nStoreType)
 	{
 		case 1:	// SQL
-//			pResults = new CResultsSQL(pTags->GetTagCount());
-//			break;
+			pResults = new CResultsSQL(pTags->GetTagCount());
+			break;
 		case 2: // CSV
-//			pResults = new CResultsCSV(pTags->GetTagCount());
-//			break;
+			pResults = new CResultsCSV(pTags->GetTagCount());
+			break;
 		default:
 			pResults = new CResults(pTags->GetTagCount());
 			break;
 	}
- 
+
 	// Compute SimHash for each file in directory
 	if (pResults->OpenStore(szStore))
 	{
 		ProcessDir(szDirectory, pTags, pResults);
 		pResults->CommitStore();
 	}
- 
+
 	delete pTags;
 	delete pResults;
- 
+
 //	std::cout << "Hello, World!\n";
 	return 0; // success
 }
- 
- 
+
+
 /////////////////////////////////////////////////////////////////////////////
 // SQL Code
- 
+
 /*
 try {
         // Establish the connection to the database server.
@@ -474,16 +356,16 @@ try {
         if (!connect_to_db(argc, argv, con)) {
             return 1;
         }
- 
+
         // Show initial state
         mysqlpp::Query query = con.query();
         cout << "Initial state of stock table:" << endl;
         print_stock_table(query);
- 
+
         // Insert a few rows in a single transaction set
         {
             mysqlpp::Transaction trans(con);
- 
+
 			for (all of the files){
             stock row1("Sauerkraut", 42, 1.2, 0.75, "2006-03-06");
             query.insert(row1);
@@ -509,6 +391,6 @@ try {
         cerr << "Error: " << er.what() << endl;
         return -1;
     }
- 
+
     return 0;
 */
