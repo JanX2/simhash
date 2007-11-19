@@ -4,11 +4,16 @@
 #include <iostream>
 #include <vector>
 #include <string>
+
+#include <dirent.h>
+#include <errno.h>
+
 #include "SimHash.h"
 #include "Results.h"
 
-using std::vector;
-using std::string;
+//using std::vector;
+//using std::string;
+using namespace std;
  
 // NOTE: Do not allow the last x bits to match the first x for x > 2
 // Also, choose tags to avoid large overlap (i.e. correlation)
@@ -139,19 +144,16 @@ void GetDirList(char* szDir, std::vector<string> &vFiles)
 {
 	DIR *dp; 
 	struct dirent *dirp;
-	if((dp  = opendir(szDir) == NULL)
-		cout << "Error(" << errno << ") opening " << szDir << endl;
-
+	
+	if(((dp  = opendir(szDir)) == NULL))
+		std::cout << "Error(" << errno << ") opening " << szDir << endl;
+ 
 	while ((dirp = readdir(dp)) != NULL)
 	{
-		if (dirp->d_type == DT_REG) //only try to process regular files
-		{
-			string filename = string(dirp->d_name);
-			string::size_type wavloc = filename.find(".wav", 0);
-			if (wavloc != string::npos)
-				vFiles.push_back( *dir + "/" + string(dirp->d_name) );
-		}
+		//if (dirp->d_type == DT_REG) //only try to process regular files
+		vFiles.push_back( *szDir + "/" + string(dirp->d_name) );
 	}
+	
 	closedir(dp);
 	free(dirp);
 }	// GetDirList (Mac)
