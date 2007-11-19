@@ -4,6 +4,8 @@
 #include <iostream>
 #include "Results.h"
 
+using namespace std;
+
 #define STRLEN_FILE   16
 #define STRLEN_TAG    8
 
@@ -121,12 +123,13 @@ void CResults::ExtractFilename(char* szPath, char* szFile)
 
 CResultsSQL::CResultsSQL(int nTags) : CResults(nTags)
 {
-	// TODO: Open db?
+	m_dbcon = new mysqlpp::Connection(false);
+	m_dbcon.connect (MYSQL_DATABASE, MYSQL_HOST, MYSQL_USER, MYSQL_PASS );
 }
 
 CResultsSQL::~CResultsSQL()
 {
-	// TODO: cleanup?
+	m_dbcon.close();
 }
 
 
