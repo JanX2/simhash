@@ -5,11 +5,10 @@
 #include <transaction.h>
 
 #include "SimHash.h"
-
 // MYSQL PARAMETERS
-#define MYSQL_HOST		"localhost"
+#define MYSQL_HOST		"127.0.0.1"
 #define MYSQL_DATABASE  "simhash"
-#define MYSQL_USER		"simuser"
+#define MYSQL_USER		"root"
 #define MYSQL_PASS		""	
 
 class CTags;
@@ -66,9 +65,10 @@ public:
 	bool CommitStore();
 	void NewFile(char* szFilepath);
 	void CloseFile();
+	bool CheckIfDirExistsInDB(char* szDirname);
 
 protected:
-	mysqlpp::Connection m_dbcon;
+	mysqlpp::Connection *m_pdbcon;
 	CTags* m_pTags;
 	mysqlpp::Transaction* m_currentTransaction;
 	char m_szTableName[MAX_PATH];
