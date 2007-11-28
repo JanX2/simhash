@@ -149,8 +149,8 @@ void GetDirList(char* szDir, std::vector<string> &vFiles)
  
 	while ((dirp = readdir(dp)) != NULL)
 	{
-		//if (dirp->d_type == DT_REG) //only try to process regular files
-		vFiles.push_back( *szDir + "/" + string(dirp->d_name) );
+		if (dirp->d_type == DT_REG) //only try to process regular files
+			vFiles.push_back(string(dirp->d_name));
 	}
 	
 	closedir(dp);
@@ -278,6 +278,7 @@ bool ProcessDir(char* szDirName, CTags* pTags, CResults* pResults)
 	for (; iter != vFiles.end(); iter++)
 	{
 		sprintf(szFilePath, "%s%s", szDirName, (*iter).c_str());
+		cout << szFilePath;
 		bRet &= ProcessFile(szFilePath, pTags, pResults);
 	}
 
@@ -297,7 +298,7 @@ int main(int argc, char* const argv[])
 	if (argc > 1)
 		strcpy(szSimHashIni, argv[1]);
 	else
-		sprintf(szSimHashIni, "SimHash.ini");
+		sprintf(szSimHashIni, "/Users/ipye/Desktop/cmps221/_hashproj/sub/simhash/SimHash.ini");
 
 	FILE* fp = fopen(szSimHashIni, "rt");
 	if (fp == NULL)
@@ -345,7 +346,7 @@ int main(int argc, char* const argv[])
 	{
 		ProcessDir(szDirectory, pTags, pResults);
 		pResults->CommitStore();
-	}
+	}file://localhost/Users/ipye/test_mysql
 
 	delete pTags;
 	delete pResults;

@@ -95,15 +95,15 @@ void CResults::ExtractFilename(char* szPath, char* szOutFile)
 	if (szPtr == NULL)
 		strcpy(szOutFile, szPath);
 	else
-		strcpy(szOutFile, szPtr+1);
+		strcpy(szOutFile, &(szPtr[1]));
 }	// CResults::ExtractFilename
 
 void CResults::ExtractDirname(char* szPath, char* szOutDir)
 {
 	strcpy(szOutDir, szPath);
-	char* szPtr = strrchr(szPath, '\\');
+	char* szPtr = strrchr(szOutDir, '\\');
 	if (szPtr == NULL)
-		szPtr = strrchr(szPath, '/');
+		szPtr = strrchr(szOutDir, '/');
 
 	if (szPtr != NULL)
 		szPtr[0] = 0;
@@ -116,22 +116,23 @@ void CResults::ExtractDirname(char* szPath, char* szOutDir)
 
 CResultsSQL::CResultsSQL(int nTags) : CResults(nTags)
 {
-	m_dbcon = new mysqlpp::Connection(mysqlpp::use_exceptions);
-	m_dbcon.connect (MYSQL_DATABASE, MYSQL_HOST, MYSQL_USER, MYSQL_PASS );
+	
+	m_pdbcon = new mysqlpp::Connection(mysqlpp::use_exceptions);
+	m_pdbcon->connect (MYSQL_DATABASE, MYSQL_HOST, MYSQL_USER, MYSQL_PASS );
 	m_pTags = NULL;
 }
 
 CResultsSQL::~CResultsSQL()
 {
 	delete m_currentTransaction;
-	m_dbcon.close();
+	m_pdbcon->close();
 }
 
 
 bool CResultsSQL::OpenStore(char* szName, CTags* pTags)
 {
 	//if the connection was not properly established with the database, error
-	if (!m_dbcon) return false;
+	if (!m_pdbcon) return false;
 	
 	//initialize tablename variable
 	strcpy(m_szTableName, szName); 
@@ -141,33 +142,40 @@ bool CResultsSQL::OpenStore(char* szName, CTags* pTags)
 	
 	//check if the table called szName exists
 	bool tableExists = false;
-	mysqlpp::Query query = m_dbcon.query();
+	mysqlpp::Query query = m_pdbcon->query();
     query << "show tables";
     mysqlpp::ResUse res = query.use();
 	if (res) {
 		mysqlpp::Row row;
-		while (row = res.fetch_row()) {
-			const string & currentTable = row.raw_string(0);
-			if (!strcmp(currentTable.c_str(), szName)){
-				tableExists = true;
-				break;
+		try{
+			while (row = res.fetch_row()) {
+				//printf(res.raw_value().c_str());
+				const string & currentTable = row.raw_string(0);
+				if (!strcmp(currentTable.c_str(), szName)){
+					tableExists = true;
+				}
 			}
+		}
+		catch (const mysqlpp::EndOfResults& er) {
 		}
 	} else return false; //error with query
 
 	//if the table does not exist, then create it and populate the columns from pTags.dwOrigTag
 	if (!tableExists){
 		query.reset();
-		query << "create table " << szName << " (filename text; directoryname text; key int; " ;
+		query << "create table " << szName << " (filename text, directoryname text, hashkey int" ;
 		for (int i = 0; i < m_nTags; i++){
-			query << m_pTags->GetTag(i)->dwOrigTag << " int; ";
+			query << ", t" << m_pTags->GetTag(i)->dwOrigTag << " int";
 		}
 		query << ")";
+		
+		//printf(query.str().c_str());
+		
 		if (!query.execute().success) return false;
 	}
 	
 	//start a new transaction object
-	m_currentTransaction = new mysqlpp::Transaction(m_dbcon);
+	m_currentTransaction = new mysqlpp::Transaction(*m_pdbcon);
 	
 	return true;	
 }	// CResultsSQL::OpenStore
@@ -195,14 +203,15 @@ void CResultsSQL::NewFile(char* szFile)
 
 void CResultsSQL::CloseFile()
 {
-	char* filename;
-	char* dirname;
-	ExtractFilename(m_szDirectory, filename);
-	ExtractDirname(m_szDirectory, dirname);
+	char szFilename[MAX_PATH];
+	char szDirname[MAX_PATH];
+	ExtractFilename(m_szDirectory, szFilename);
+	ExtractDirname(m_szDirectory, szDirname);
+	//CheckIfDirExistsInDB(szDirname);
 	
-	mysqlpp::Query query = m_dbcon.query();
+	mysqlpp::Query query = m_pdbcon->query();
 	query << "insert into " << m_szTableName;
-	query << " values (" << filename << ", " << dirname << ", " << ComputeHashKey(m_pTags);
+	query << " values ('" << szFilename << "', '" << szDirname << "', " << ComputeHashKey(m_pTags);
 	for (int i = 0; i < m_nTags; i++) {
 		query << ", " << m_pnSumTable[i];
 	}
@@ -211,6 +220,25 @@ void CResultsSQL::CloseFile()
 	query.execute();
 }	// CResultsSQL::CloseFile
 
+
+bool CResultsSQL::CheckIfDirExistsInDB(char* szDirname)
+{
+	bool dirExists = false;
+	mysqlpp::Query query = m_pdbcon->query();
+    query << "select directoryname from " << m_szStoreName << "where directoryname= '" 
+			<< szDirname << "'";
+    mysqlpp::ResUse res = query.use();
+	if (res) {
+		mysqlpp::Row row;
+		try{
+			if (row = res.fetch_row())
+				dirExists = true;
+		}
+		catch (const mysqlpp::EndOfResults& er) {
+		}
+	} 
+	return dirExists;
+}
 
 
 /////////////////////////////////////////////////////////////////////////////
