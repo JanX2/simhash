@@ -9,7 +9,7 @@
 #define MYSQL_HOST		"127.0.0.1"
 #define MYSQL_DATABASE  "simhash"
 #define MYSQL_USER		"root"
-#define MYSQL_PASS		""	
+#define MYSQL_PASS		"bilb0"	
 
 class CTags;
 
@@ -35,15 +35,17 @@ public:
 	virtual void NewFile(char* szFile);
 	virtual void CloseFile();
 	virtual void IncrTag(int nTag);
+	virtual bool CheckValidDir(char* szDir) { return true; }
+
+	static void ExtractFilename(char* szPath, char* szOutFile);
+	static void ExtractDirname(char* szPath, char* szOutDir);
 
 protected:
 	int ComputeHashKey(CTags* pTags);
 	void FormatRowBufferTxt();
-	static void ExtractFilename(char* szPath, char* szOutFile);
-	static void ExtractDirname(char* szPath, char* szOutDir);
 
 	char   m_szStoreName[MAX_PATH];
-	char   m_szFileName[MAX_PATH];
+	char   m_szFilePath[MAX_PATH];
 
 	int    m_nTags;
 	DWORD* m_pnSumTable;
@@ -65,14 +67,12 @@ public:
 	bool CommitStore();
 	void NewFile(char* szFilepath);
 	void CloseFile();
-	bool CheckIfDirExistsInDB(char* szDirname);
+	bool CheckValidDir(char* szDir);
 
 protected:
 	mysqlpp::Connection *m_pdbcon;
+	mysqlpp::Transaction* m_pTransaction;
 	CTags* m_pTags;
-	mysqlpp::Transaction* m_currentTransaction;
-	char m_szTableName[MAX_PATH];
-	char m_szDirectory[MAX_PATH];
 	// TODO: db info
 };
 

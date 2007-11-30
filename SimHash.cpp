@@ -5,7 +5,6 @@
 #include <vector>
 #include <string>
 
-#include <dirent.h>
 #include <errno.h>
 
 #include "SimHash.h"
@@ -23,6 +22,7 @@ using namespace std;
 
 #define CHUNK_SIZE    4096 // size of file block to be read
 
+bool g_bMac = false;
 
 /////////////////////////////////////////////////////////////////////////////
 // CTags
@@ -139,6 +139,7 @@ bool CTags::Compare(DWORD s1, DWORD s2, DWORD dwMask)
 // Directory functions: OS -specific
 
 #ifdef __APPLE__
+#include <dirent.h>
 void GetDirList(char* szDir, std::vector<string> &vFiles)
 {
 	DIR *dp; 
@@ -269,7 +270,10 @@ bool ProcessFile(char* szFilePath, CTags* pTags, CResults* pResults)
 // a given file
 bool ProcessDir(char* szDirName, CTags* pTags, CResults* pResults)
 {
-	bool bRet = true;
+	// This directory has already been processed
+	if ( !pResults->CheckValidDir(szDirName) )
+		return false;
+
 	std::vector<string> vFiles;
 	GetDirList(szDirName, vFiles);
 	char szFilePath[MAX_PATH];
@@ -278,11 +282,10 @@ bool ProcessDir(char* szDirName, CTags* pTags, CResults* pResults)
 	for (; iter != vFiles.end(); iter++)
 	{
 		sprintf(szFilePath, "%s%s", szDirName, (*iter).c_str());
-		cout << szFilePath;
-		bRet &= ProcessFile(szFilePath, pTags, pResults);
+		ProcessFile(szFilePath, pTags, pResults);
 	}
 
-	return bRet;
+	return true;
 }	// ProcessDir
 
 
@@ -293,12 +296,19 @@ int main(int argc, char* const argv[])
 	int  nStoreType;
 	char szStore[MAX_PATH];
 	char szDirectory[MAX_PATH];
+	
+#ifdef __APPLE__
+	g_bMac = true;
+#endif
 
 	// Read specs for run out of INI file
 	if (argc > 1)
 		strcpy(szSimHashIni, argv[1]);
+	else if (g_bMac)
+		sprintf(szSimHashIni, "/Users/ipye/Desktop/cmps221/_hashproj/sub/simhash/MacHash.ini");
 	else
-		sprintf(szSimHashIni, "/Users/ipye/Desktop/cmps221/_hashproj/sub/simhash/SimHash.ini");
+		sprintf(szSimHashIni, "WinHash.ini");
+
 
 	FILE* fp = fopen(szSimHashIni, "rt");
 	if (fp == NULL)
@@ -312,7 +322,7 @@ int main(int argc, char* const argv[])
 		(fscanf(fp, "Store=%s\n", szStore) != 1) ||
 		(fscanf(fp, "Directory=%s", szDirectory) != 1) )
 	{
-		printf("main: Invalid INI file\n", szSimHashIni);
+		printf("main: Invalid INI file '%s'\n", szSimHashIni);
 		return 1;
 	}
 	fclose(fp);
@@ -344,9 +354,9 @@ int main(int argc, char* const argv[])
 	// Compute SimHash for each file in directory
 	if (pResults->OpenStore(szStore, pTags))
 	{
-		ProcessDir(szDirectory, pTags, pResults);
-		pResults->CommitStore();
-	}file://localhost/Users/ipye/test_mysql
+		if ( ProcessDir(szDirectory, pTags, pResults) )
+			pResults->CommitStore();
+	}
 
 	delete pTags;
 	delete pResults;

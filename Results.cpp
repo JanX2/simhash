@@ -16,7 +16,7 @@ CResults::CResults(int nTags)
 {
 	m_nTags = nTags;
 	m_pnSumTable = (DWORD*) calloc(nTags, sizeof(DWORD));
-	memset(m_szFileName, 0, MAX_PATH);
+	memset(m_szFilePath, 0, MAX_PATH);
 
 	m_szRowBuffer = (char*) malloc(STRLEN_FILE + 20 + (STRLEN_TAG + 6)*m_nTags);
 }
@@ -31,7 +31,7 @@ CResults::~CResults()
 
 void CResults::NewFile(char* szFile)
 {
-	strcpy(m_szFileName, szFile);
+	strcpy(m_szFilePath, szFile);
 	memset(m_pnSumTable, 0, m_nTags*sizeof(DWORD));
 }	// CResults::NewFile
 
@@ -44,7 +44,7 @@ void CResults::IncrTag(int nTag)
 
 void CResults::CloseFile()
 {
-	if (strlen(m_szFileName) == 0)
+	if (strlen(m_szFilePath) == 0)
 		return;
 	FormatRowBufferTxt();
 	printf("%s", m_szRowBuffer);
@@ -64,7 +64,7 @@ void CResults::FormatRowBufferTxt()
 {
 	// Make file name exactly 15 characters
 	char szTruncName[MAX_PATH];
-	ExtractFilename(m_szFileName, szTruncName);
+	ExtractFilename(m_szFilePath, szTruncName);
 	szTruncName[STRLEN_FILE] = 0;
 	int nTrunc = (int) strlen(szTruncName);
 	while (nTrunc < STRLEN_FILE)
@@ -110,82 +110,88 @@ void CResults::ExtractDirname(char* szPath, char* szOutDir)
 }	// CResults::ExtractDirname
 
 
+
 /////////////////////////////////////////////////////////////////////////////
 // CResultsSQL
 
-
 CResultsSQL::CResultsSQL(int nTags) : CResults(nTags)
 {
-	
 	m_pdbcon = new mysqlpp::Connection(mysqlpp::use_exceptions);
 	m_pdbcon->connect (MYSQL_DATABASE, MYSQL_HOST, MYSQL_USER, MYSQL_PASS );
 	m_pTags = NULL;
+	m_pTransaction = NULL;
+	m_szFilePath[0] = 0;
 }
 
 CResultsSQL::~CResultsSQL()
 {
-	delete m_currentTransaction;
+	delete m_pTransaction;
 	m_pdbcon->close();
 }
 
 
 bool CResultsSQL::OpenStore(char* szName, CTags* pTags)
 {
-	//if the connection was not properly established with the database, error
-	if (!m_pdbcon) return false;
-	
-	//initialize tablename variable
-	strcpy(m_szTableName, szName); 
-	
-	//initialize m_pTags
+	// If the connection was not properly established with the database, error
+	if ( !m_pdbcon || !m_pdbcon->connected() )
+		return false;
+
+	// Initialize members
+	strcpy(m_szStoreName, szName);
 	m_pTags = pTags;
-	
+
 	//check if the table called szName exists
 	bool tableExists = false;
 	mysqlpp::Query query = m_pdbcon->query();
-    query << "show tables";
-    mysqlpp::ResUse res = query.use();
-	if (res) {
-		mysqlpp::Row row;
-		try{
-			while (row = res.fetch_row()) {
-				//printf(res.raw_value().c_str());
-				const string & currentTable = row.raw_string(0);
-				if (!strcmp(currentTable.c_str(), szName)){
-					tableExists = true;
-				}
-			}
+	query << "show tables";
+	mysqlpp::ResUse res = query.use();
+	if (!res)
+		return false; //error with query
+
+	mysqlpp::Row row;
+	try
+	{
+		while (row = res.fetch_row())
+		{
+			//printf(res.raw_value().c_str());
+			const string& currentTable = row.raw_string(0);
+			if (!strcmp(currentTable.c_str(), szName))
+				tableExists = true;
 		}
-		catch (const mysqlpp::EndOfResults& er) {
-		}
-	} else return false; //error with query
+	}
+	catch (const mysqlpp::EndOfResults& ){} // thrown when no more rows
 
 	//if the table does not exist, then create it and populate the columns from pTags.dwOrigTag
-	if (!tableExists){
+	if (!tableExists)
+	{
 		query.reset();
 		query << "create table " << szName << " (filename text, directoryname text, hashkey int" ;
-		for (int i = 0; i < m_nTags; i++){
+		for (int i = 0; i < m_nTags; i++)
 			query << ", t" << m_pTags->GetTag(i)->dwOrigTag << " int";
-		}
 		query << ")";
-		
+
 		//printf(query.str().c_str());
 		
-		if (!query.execute().success) return false;
+		if (!query.execute().success)
+			return false;
 	}
-	
+
 	//start a new transaction object
-	m_currentTransaction = new mysqlpp::Transaction(*m_pdbcon);
-	
-	return true;	
+	m_pTransaction = new mysqlpp::Transaction(*m_pdbcon);
+
+	return (m_pTransaction != NULL);
 }	// CResultsSQL::OpenStore
 
 
 bool CResultsSQL::CommitStore()
 {
-	try{
-		m_currentTransaction->commit();
-	}catch (const mysqlpp::Exception& er){
+	try
+	{
+		m_pTransaction->commit();
+	}
+	catch (const mysqlpp::Exception& er)
+	{
+		printf("CResultsSQL::CommitStore() failed: %s\n", er);
 		return false;
 	}
 	return true;
@@ -195,8 +201,7 @@ bool CResultsSQL::CommitStore()
 void CResultsSQL::NewFile(char* szFile)
 {	
 	//initialize currentfilepath variable
-	strcpy(m_szDirectory, szFile); 
-	
+	strcpy(m_szFilePath, szFile);
 	CResults::NewFile(szFile);
 }	// CResultsSQL::NewFile
 
@@ -205,40 +210,46 @@ void CResultsSQL::CloseFile()
 {
 	char szFilename[MAX_PATH];
 	char szDirname[MAX_PATH];
-	ExtractFilename(m_szDirectory, szFilename);
-	ExtractDirname(m_szDirectory, szDirname);
-	//CheckIfDirExistsInDB(szDirname);
+	ExtractFilename(m_szFilePath, szFilename);
+	ExtractDirname(m_szFilePath, szDirname);
 	
 	mysqlpp::Query query = m_pdbcon->query();
-	query << "insert into " << m_szTableName;
-	query << " values ('" << szFilename << "', '" << szDirname << "', " << ComputeHashKey(m_pTags);
-	for (int i = 0; i < m_nTags; i++) {
+	query << "insert into " << m_szStoreName;
+	query << " values ('" << szFilename << "', '" << szDirname << "', ";
+	query << ComputeHashKey(m_pTags);
+	for (int i = 0; i < m_nTags; i++)
 		query << ", " << m_pnSumTable[i];
-	}
 	query << ")";
-	//store row to query contents of DWORD* m_pnSumTable; and m_szFileName;
+	//store row to query contents of DWORD* m_pnSumTable; and m_szFilePath;
 	query.execute();
 }	// CResultsSQL::CloseFile
 
 
-bool CResultsSQL::CheckIfDirExistsInDB(char* szDirname)
+// Returns 'false' if this directory is already associated with rows in the db
+bool CResultsSQL::CheckValidDir(char* szDirname)
 {
 	bool dirExists = false;
 	mysqlpp::Query query = m_pdbcon->query();
-    query << "select directoryname from " << m_szStoreName << "where directoryname= '" 
-			<< szDirname << "'";
-    mysqlpp::ResUse res = query.use();
-	if (res) {
+	query.reset();
+	query << "select directoryname from " << m_szStoreName;
+	query << " where directoryname= '" << szDirname << "'";
+	mysqlpp::ResUse res = query.use();
+	if (res)
+	{
 		mysqlpp::Row row;
-		try{
+		try
+		{
 			if (row = res.fetch_row())
+			{
 				dirExists = true;
+				printf("'%s' has already been scanned into this table.\n", szDirname);
+			}
 		}
-		catch (const mysqlpp::EndOfResults& er) {
-		}
-	} 
-	return dirExists;
-}
+		catch (const mysqlpp::EndOfResults& ) {} // thrown when no more rows
+	}
+	return !dirExists;
+}	// CResultsSQL::CheckValidDir
+
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -256,6 +267,7 @@ CResultsCSV::~CResultsCSV()
 
 bool CResultsCSV::OpenStore(char* szName, CTags*)
 {
+	strcpy(m_szStoreName, szName);
 	m_fp = fopen(szName, "wt");
 	if (m_fp == NULL)
 	{
@@ -277,7 +289,7 @@ bool CResultsCSV::CommitStore()
 
 void CResultsCSV::CloseFile()
 {
-	if (strlen(m_szFileName) == 0)
+	if (strlen(m_szFilePath) == 0)
 		return;
 
 	FormatRowBufferTxt();
