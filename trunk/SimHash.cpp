@@ -140,7 +140,7 @@ bool CTags::Compare(DWORD s1, DWORD s2, DWORD dwMask)
 
 #ifdef __APPLE__
 #include <dirent.h>
-void GetDirList(char* szDir, std::vector<string> &vFiles)
+void GetDirList(char* szDir, std::vector<string> &vFiles, std::vector<string> &vDirs)
 {
 	DIR *dp; 
 	struct dirent *dirp;
@@ -152,13 +152,15 @@ void GetDirList(char* szDir, std::vector<string> &vFiles)
 	{
 		if (dirp->d_type == DT_REG) //only try to process regular files
 			vFiles.push_back(string(dirp->d_name));
+		else if ((dirp->d_type == DT_DIR) && (dirp->d_name[0] != '.'))
+			vDirs.push_back(string(dirp->d_name));
 	}
 	
 	closedir(dp);
 	free(dirp);
 }	// GetDirList (Mac)
 #else
-void GetDirList(char* szDir, std::vector<string> &vFiles)
+void GetDirList(char* szDir, std::vector<string> &vFiles, std::vector<string> &vDirs)
 {
 	// Build wildcard file specifier
 	char szWildCard[MAX_PATH];
@@ -275,10 +277,23 @@ bool ProcessDir(char* szDirName, CTags* pTags, CResults* pResults)
 		return false;
 
 	std::vector<string> vFiles;
-	GetDirList(szDirName, vFiles);
+	std::vector<string> vDirs;
+	GetDirList(szDirName, vFiles, vDirs);
 	char szFilePath[MAX_PATH];
+	char szSlash[3];
+	if (g_bMac)
+		sprintf(szSlash, "/");
+	else
+		sprintf(szSlash, "\\");
+	
+	vector<string>::iterator iter = vDirs.begin();
+	for (; iter != vDirs.end(); iter++)
+	{
+		sprintf(szFilePath, "%s%s%s", szDirName, (*iter).c_str(), szSlash);
+		ProcessDir(szFilePath, pTags, pResults);
+	}
 
-	vector<string>::iterator iter = vFiles.begin();
+	iter = vFiles.begin();
 	for (; iter != vFiles.end(); iter++)
 	{
 		sprintf(szFilePath, "%s%s", szDirName, (*iter).c_str());
