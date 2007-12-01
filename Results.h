@@ -9,7 +9,11 @@
 #define MYSQL_HOST		"127.0.0.1"
 #define MYSQL_DATABASE  "simhash"
 #define MYSQL_USER		"root"
-#define MYSQL_PASS		"bilb0"	
+#ifdef __APPLE__
+  #define MYSQL_PASS		""
+#else
+  #define MYSQL_PASS		"bilb0"
+#endif
 
 class CTags;
 
