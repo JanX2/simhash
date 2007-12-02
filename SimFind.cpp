@@ -4,13 +4,11 @@
 #include <iostream>
 #include <vector>
 #include <string>
-
 #include <errno.h>
 
-#include "SimHash.h"
+#include "FileUtil.h"
 #include "Results.h"
 
-using namespace std;
 
 // Since apparently MySql won't let you make a second query while one is
 // still open, we need two connections
@@ -100,8 +98,8 @@ void FindSimilaritiesForOne(FILE* fp, char* szTable, char* szFilePath)
 {
 	char szFilename[MAX_PATH];
 	char szDirname[MAX_PATH];
-	CResults::ExtractFilename(szFilePath, szFilename);
-	CResults::ExtractDirname(szFilePath, szDirname);
+	ExtractFilename(szFilePath, szFilename);
+	ExtractDirname(szFilePath, szDirname);
 
 	// Retrieve all rows
 	mysqlpp::Query query = g_pdbcon1->query();

@@ -1,12 +1,7 @@
 #ifndef __SIM_HASH_H__
 #define __SIM_HASH_H__
 
-#ifdef __APPLE__
-#include <dirent.h>
-#else
-#include <windows.h>
-#endif
-
+#include "FileUtil.h"
 
 typedef unsigned long       DWORD;
 typedef int                 BOOL;
@@ -16,10 +11,6 @@ typedef unsigned short      WORD;
 #ifndef max
 #define max(x,y)   ((x) < (y) ? (y) : (x))
 #define min(x,y)   ((x) > (y) ? (y) : (x))
-#endif
-
-#ifndef MAX_PATH
-#define MAX_PATH   260
 #endif
 
 typedef struct BINTAG

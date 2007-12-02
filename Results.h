@@ -41,10 +41,6 @@ public:
 	virtual void IncrTag(int nTag);
 	virtual bool CheckValidDir(char* szDir) { return true; }
 
-	static void ExtractFilename(char* szPath, char* szOutFile);
-	static void ExtractDirname(char* szPath, char* szOutDir);
-	static void ReplaceSlashes(char* szPath);
-
 protected:
 	int ComputeHashKey(CTags* pTags);
 	void FormatRowBufferTxt();

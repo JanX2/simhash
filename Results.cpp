@@ -2,9 +2,10 @@
 #define _CRT_SECURE_NO_WARNINGS
 
 #include <iostream>
+#include "FileUtil.h"
 #include "Results.h"
 
-using namespace std;
+//using namespace std;
 
 #define STRLEN_FILE   16
 #define STRLEN_TAG    8
@@ -85,41 +86,6 @@ void CResults::FormatRowBufferTxt()
 	strcat(m_szRowBuffer, "\n");
 //	printf("\n");
 }	// CResults::FormatRowBufferTxt
-
-
-void CResults::ExtractFilename(char* szPath, char* szOutFile)
-{
-	char* szPtr = strrchr(szPath, '\\');
-	if (szPtr == NULL)
-		szPtr = strrchr(szPath, '/');
-
-	if (szPtr == NULL)
-		strcpy(szOutFile, szPath);
-	else
-		strcpy(szOutFile, &(szPtr[1]));
-}	// CResults::ExtractFilename
-
-void CResults::ExtractDirname(char* szPath, char* szOutDir)
-{
-	strcpy(szOutDir, szPath);
-	char* szPtr = strrchr(szOutDir, '\\');
-	if (szPtr == NULL)
-		szPtr = strrchr(szOutDir, '/');
-
-	if (szPtr != NULL)
-		szPtr[1] = 0;
-}	// CResults::ExtractDirname
-
-
-void CResults::ReplaceSlashes(char* szPath)
-{
-	char* szPtr = strrchr(szPath, '\\');
-	while (szPtr != NULL)
-	{
-		szPtr[0] = '/';
-		szPtr = strrchr(szPath, '\\');
-	}
-}	// CResults::ReplaceSlashes
 
 
 
