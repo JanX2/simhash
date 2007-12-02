@@ -36,13 +36,14 @@ public:
 	virtual bool OpenStore(char* , CTags* ) { return true; }
 	virtual bool CommitStore() { return true; }
 
-	virtual void NewFile(char* szFile);
+	virtual void NewFile(char* szFile, int nFileSize);
 	virtual void CloseFile();
 	virtual void IncrTag(int nTag);
 	virtual bool CheckValidDir(char* szDir) { return true; }
 
 	static void ExtractFilename(char* szPath, char* szOutFile);
 	static void ExtractDirname(char* szPath, char* szOutDir);
+	static void ReplaceSlashes(char* szPath);
 
 protected:
 	int ComputeHashKey(CTags* pTags);
@@ -52,6 +53,7 @@ protected:
 	char   m_szFilePath[MAX_PATH];
 
 	int    m_nTags;
+	int    m_nFileSize;
 	DWORD* m_pnSumTable;
 	char*  m_szRowBuffer;  // for writing text-formatted data
 };
@@ -69,7 +71,7 @@ public:
 
 	bool OpenStore(char* szName, CTags* pTags);
 	bool CommitStore();
-	void NewFile(char* szFilepath);
+	void NewFile(char* szFilepath, int nFileSize);
 	void CloseFile();
 	bool CheckValidDir(char* szDir);
 

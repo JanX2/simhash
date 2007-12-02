@@ -21,6 +21,8 @@ bool g_bMac = false;
 int  g_nKeyDelta = 5;
 int  g_nSumDelta = 5;
 
+#define TAG1   4 // number of fields preceeding 1st tag
+
 /////////////////////////////////////////////////////////////////////////////
 // SimFind: main() and subroutines
 /*
@@ -37,7 +39,7 @@ int ComputeDistance(mysqlpp::Row& row1, mysqlpp::Row& row2)
 {
 	int nDist = 0;
 	int nRows = row1.size();
-	for (int i = 3; i < nRows; i++)
+	for (int i = TAG1; i < nRows; i++)
 		nDist += abs( atoi(row1.raw_data(i)) - atoi(row2.raw_data(i)) );
 	return nDist;
 }	// ComputeDistance
@@ -45,7 +47,7 @@ int ComputeDistance(mysqlpp::Row& row1, mysqlpp::Row& row2)
 
 void FindSimilarities(FILE* fp, char* szTable, mysqlpp::Row& row, bool bFindForward)
 {
-	int nKey = atoi(row.raw_data(2));
+	int nKey = atoi(row.raw_data(TAG1-1));
 	int ub = nKey + g_nKeyDelta;
 	int lb = bFindForward ? nKey : nKey - g_nKeyDelta;
 

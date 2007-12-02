@@ -29,10 +29,11 @@ CResults::~CResults()
 }
 
 
-void CResults::NewFile(char* szFile)
+void CResults::NewFile(char* szFile, int nFileSize)
 {
 	strcpy(m_szFilePath, szFile);
 	memset(m_pnSumTable, 0, m_nTags*sizeof(DWORD));
+	m_nFileSize = nFileSize;
 }	// CResults::NewFile
 
 
@@ -106,8 +107,19 @@ void CResults::ExtractDirname(char* szPath, char* szOutDir)
 		szPtr = strrchr(szOutDir, '/');
 
 	if (szPtr != NULL)
-		szPtr[0] = 0;
+		szPtr[1] = 0;
 }	// CResults::ExtractDirname
+
+
+void CResults::ReplaceSlashes(char* szPath)
+{
+	char* szPtr = strrchr(szPath, '\\');
+	while (szPtr != NULL)
+	{
+		szPtr[0] = '/';
+		szPtr = strrchr(szPath, '\\');
+	}
+}	// CResults::ReplaceSlashes
 
 
 
@@ -117,7 +129,7 @@ void CResults::ExtractDirname(char* szPath, char* szOutDir)
 CResultsSQL::CResultsSQL(int nTags) : CResults(nTags)
 {
 	m_pdbcon = new mysqlpp::Connection(mysqlpp::use_exceptions);
-	m_pdbcon->connect (MYSQL_DATABASE, MYSQL_HOST, MYSQL_USER, MYSQL_PASS );
+	m_pdbcon->connect(MYSQL_DATABASE, MYSQL_HOST, MYSQL_USER, MYSQL_PASS );
 	m_pTags = NULL;
 	m_pTransaction = NULL;
 	m_szFilePath[0] = 0;
@@ -165,7 +177,8 @@ bool CResultsSQL::OpenStore(char* szName, CTags* pTags)
 	if (!tableExists)
 	{
 		query.reset();
-		query << "create table " << szName << " (filename text, directoryname text, hashkey int" ;
+		query << "create table " << szName << " (filename text, ";
+		query << "directoryname text, filesize int, hashkey int" ;
 		for (int i = 0; i < m_nTags; i++)
 			query << ", t" << m_pTags->GetTag(i)->dwOrigTag << " int";
 		query << ")";
@@ -198,11 +211,11 @@ bool CResultsSQL::CommitStore()
 }	// CResultsSQL::CommitStore
 
 
-void CResultsSQL::NewFile(char* szFile)
+void CResultsSQL::NewFile(char* szFile, int nFileSize)
 {	
 	//initialize currentfilepath variable
 	strcpy(m_szFilePath, szFile);
-	CResults::NewFile(szFile);
+	CResults::NewFile(szFile, nFileSize);
 }	// CResultsSQL::NewFile
 
 
@@ -212,10 +225,12 @@ void CResultsSQL::CloseFile()
 	char szDirname[MAX_PATH];
 	ExtractFilename(m_szFilePath, szFilename);
 	ExtractDirname(m_szFilePath, szDirname);
+	ReplaceSlashes(szDirname);
 	
 	mysqlpp::Query query = m_pdbcon->query();
 	query << "insert into " << m_szStoreName;
-	query << " values ('" << szFilename << "', '" << szDirname << "', ";
+	query << " values ('" << szFilename << "', '";
+	query << szDirname << "', " << m_nFileSize << ", ";
 	query << ComputeHashKey(m_pTags);
 	for (int i = 0; i < m_nTags; i++)
 		query << ", " << m_pnSumTable[i];
@@ -228,11 +243,15 @@ void CResultsSQL::CloseFile()
 // Returns 'false' if this directory is already associated with rows in the db
 bool CResultsSQL::CheckValidDir(char* szDirname)
 {
+	char szSQLPath[MAX_PATH];
+	strcpy(szSQLPath, szDirname);
+	ReplaceSlashes(szSQLPath);
+
 	bool dirExists = false;
 	mysqlpp::Query query = m_pdbcon->query();
 	query.reset();
 	query << "select directoryname from " << m_szStoreName;
-	query << " where directoryname= '" << szDirname << "'";
+	query << " where directoryname= '" << szSQLPath << "'";
 	mysqlpp::ResUse res = query.use();
 	if (res)
 	{
