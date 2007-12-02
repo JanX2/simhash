@@ -23,7 +23,13 @@ using namespace std;
 #define CHUNK_SIZE    4096 // size of file block to be read
 
 bool g_bMac = false;
+char g_szSlash[3];
+bool g_bReport = true;
 
+/* TODO:
+ * Include file size in table
+ * scale sim tolerance based on file size
+*/
 /////////////////////////////////////////////////////////////////////////////
 // CTags
 
@@ -145,7 +151,7 @@ void GetDirList(char* szDir, std::vector<string> &vFiles, std::vector<string> &v
 	DIR *dp; 
 	struct dirent *dirp;
 	
-	if(((dp  = opendir(szDir)) == NULL))
+	if (((dp  = opendir(szDir)) == NULL))
 		std::cout << "Error(" << errno << ") opening " << szDir << endl;
  
 	while ((dirp = readdir(dp)) != NULL)
@@ -167,16 +173,7 @@ void GetDirList(char* szDir, std::vector<string> &vFiles, std::vector<string> &v
 	if (strlen(szDir) == 0)
 		sprintf(szWildCard, "*");
 	else
-	{
-		// Append \ to dir
-		if (szDir[strlen(szDir)-1] != '\\')
-		{
-			int nLen = (int) strlen(szDir);
-			szDir[nLen] = '\\';
-			szDir[nLen+1] = 0;
-		}
 		sprintf(szWildCard, "%s*", szDir);
-	}
 
 	// Collect file names
 	WIN32_FIND_DATAA fileData;
@@ -185,11 +182,11 @@ void GetDirList(char* szDir, std::vector<string> &vFiles, std::vector<string> &v
 	string str;
 	while ((hFind != INVALID_HANDLE_VALUE) && bMoreFiles)
 	{
+		str.assign(fileData.cFileName);
 		if ( !(fileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) )
-		{
-			str.assign(fileData.cFileName);
 			vFiles.push_back(str);
-		}
+		else if (fileData.cFileName[0] != '.')
+			vDirs.push_back(str);
 		bMoreFiles = FindNextFileA(hFind, &fileData);
 	}
     FindClose(hFind);
@@ -242,7 +239,7 @@ bool ProcessFile(char* szFilePath, CTags* pTags, CResults* pResults)
 	rewind(fp);
 
 	// Start new "row" in pResults store
-	pResults->NewFile(szFilePath);
+	pResults->NewFile(szFilePath, nSize);
 
 	BYTE* pBuf = (BYTE*) malloc(CHUNK_SIZE+8);
 	while (nSize > 4)
@@ -268,39 +265,48 @@ bool ProcessFile(char* szFilePath, CTags* pTags, CResults* pResults)
 }	// ProcessFile
 
 
-//This function should only be called with the pTags associated with
-// a given file
+// This function should only be called with the pTags associated with
+// a given file.  Note that szDirName will have a slash appended to it
+// if need be.  Returns TRUE if any files are processed.
 bool ProcessDir(char* szDirName, CTags* pTags, CResults* pResults)
 {
+	// Append slash to szDirName
+	if (szDirName[strlen(szDirName)-1] != g_szSlash[0])
+		strcat(szDirName, g_szSlash);	
+
 	// This directory has already been processed
 	if ( !pResults->CheckValidDir(szDirName) )
 		return false;
 
+	BOOL bRet = false;
 	std::vector<string> vFiles;
 	std::vector<string> vDirs;
 	GetDirList(szDirName, vFiles, vDirs);
 	char szFilePath[MAX_PATH];
 	char szSlash[3];
-	if (g_bMac)
-		sprintf(szSlash, "/");
-	else
-		sprintf(szSlash, "\\");
 	
+	// Recusively process subdirectories
 	vector<string>::iterator iter = vDirs.begin();
 	for (; iter != vDirs.end(); iter++)
 	{
-		sprintf(szFilePath, "%s%s%s", szDirName, (*iter).c_str(), szSlash);
-		ProcessDir(szFilePath, pTags, pResults);
-	}
-
-	iter = vFiles.begin();
-	for (; iter != vFiles.end(); iter++)
-	{
 		sprintf(szFilePath, "%s%s", szDirName, (*iter).c_str());
-		ProcessFile(szFilePath, pTags, pResults);
+		bRet |= ProcessDir(szFilePath, pTags, pResults);
 	}
 
-	return true;
+	// Process files in this directory
+	if (g_bReport)
+		printf("Processing dir: %s\n", szDirName);
+	for (int i = 0; i < vFiles.size(); i++)
+	{
+		sprintf(szFilePath, "%s%s", szDirName, vFiles[i].c_str());
+		ProcessFile(szFilePath, pTags, pResults);
+		if ( g_bReport && (i % 100 == 0) && i )
+			printf(" %d", i);
+	}
+	if ( g_bReport && (vFiles.size() > 100) )
+		printf("\n");
+
+	return (bRet || !vFiles.empty());
 }	// ProcessDir
 
 
@@ -315,6 +321,7 @@ int main(int argc, char* const argv[])
 #ifdef __APPLE__
 	g_bMac = true;
 #endif
+	sprintf(g_szSlash, (g_bMac ? "/" : "\\"));
 
 	// Read specs for run out of INI file
 	if (argc > 1)
@@ -375,7 +382,6 @@ int main(int argc, char* const argv[])
 
 	delete pTags;
 	delete pResults;
-
 	return 0; // success
 }
 
