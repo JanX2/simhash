@@ -2,15 +2,10 @@
 #define _CRT_SECURE_NO_WARNINGS
 
 #include <iostream>
-#include <vector>
-#include <string>
-
 #include <errno.h>
 
 #include "SimHash.h"
 #include "Results.h"
-
-using namespace std;
  
 // NOTE: Do not allow the last x bits to match the first x for x > 2
 // Also, choose tags to avoid large overlap (i.e. correlation)
@@ -22,12 +17,18 @@ using namespace std;
 
 #define CHUNK_SIZE    4096 // size of file block to be read
 
-bool g_bMac = false;
-char g_szSlash[3];
+
+#ifdef __APPLE__
+	bool g_bMac = true;
+	char g_szSlash[2] = "/";
+#else
+	bool g_bMac = false;
+	char g_szSlash[2] = "\\";
+#endif
+
 bool g_bReport = true;
 
 /* TODO:
- * Include file size in table
  * scale sim tolerance based on file size
 */
 /////////////////////////////////////////////////////////////////////////////
@@ -142,60 +143,6 @@ bool CTags::Compare(DWORD s1, DWORD s2, DWORD dwMask)
 
 
 /////////////////////////////////////////////////////////////////////////////
-// Directory functions: OS -specific
-
-#ifdef __APPLE__
-#include <dirent.h>
-void GetDirList(char* szDir, std::vector<string> &vFiles, std::vector<string> &vDirs)
-{
-	DIR *dp; 
-	struct dirent *dirp;
-	
-	if (((dp  = opendir(szDir)) == NULL))
-		std::cout << "Error(" << errno << ") opening " << szDir << endl;
- 
-	while ((dirp = readdir(dp)) != NULL)
-	{
-		if (dirp->d_type == DT_REG) //only try to process regular files
-			vFiles.push_back(string(dirp->d_name));
-		else if ((dirp->d_type == DT_DIR) && (dirp->d_name[0] != '.'))
-			vDirs.push_back(string(dirp->d_name));
-	}
-	
-	closedir(dp);
-	free(dirp);
-}	// GetDirList (Mac)
-#else
-void GetDirList(char* szDir, std::vector<string> &vFiles, std::vector<string> &vDirs)
-{
-	// Build wildcard file specifier
-	char szWildCard[MAX_PATH];
-	if (strlen(szDir) == 0)
-		sprintf(szWildCard, "*");
-	else
-		sprintf(szWildCard, "%s*", szDir);
-
-	// Collect file names
-	WIN32_FIND_DATAA fileData;
-	HANDLE hFind = FindFirstFileA(szWildCard, &fileData);
-	BOOL bMoreFiles = 1;
-	string str;
-	while ((hFind != INVALID_HANDLE_VALUE) && bMoreFiles)
-	{
-		str.assign(fileData.cFileName);
-		if ( !(fileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) )
-			vFiles.push_back(str);
-		else if (fileData.cFileName[0] != '.')
-			vDirs.push_back(str);
-		bMoreFiles = FindNextFileA(hFind, &fileData);
-	}
-    FindClose(hFind);
-}	// GetDirList (Windows)
-#endif
-
-
-
-/////////////////////////////////////////////////////////////////////////////
 // main() and subroutines
 
 void ProcessChunk(BYTE* pChunk, int nChunkSize, CTags* pTags, CResults* pResults)
@@ -278,12 +225,11 @@ bool ProcessDir(char* szDirName, CTags* pTags, CResults* pResults)
 	if ( !pResults->CheckValidDir(szDirName) )
 		return false;
 
-	BOOL bRet = false;
+	bool bRet = false;
 	std::vector<string> vFiles;
 	std::vector<string> vDirs;
 	GetDirList(szDirName, vFiles, vDirs);
 	char szFilePath[MAX_PATH];
-	char szSlash[3];
 	
 	// Recusively process subdirectories
 	vector<string>::iterator iter = vDirs.begin();
@@ -296,7 +242,7 @@ bool ProcessDir(char* szDirName, CTags* pTags, CResults* pResults)
 	// Process files in this directory
 	if (g_bReport)
 		printf("Processing dir: %s\n", szDirName);
-	for (int i = 0; i < vFiles.size(); i++)
+	for (int i = 0; i < (int) vFiles.size(); i++)
 	{
 		sprintf(szFilePath, "%s%s", szDirName, vFiles[i].c_str());
 		ProcessFile(szFilePath, pTags, pResults);
@@ -317,11 +263,6 @@ int main(int argc, char* const argv[])
 	int  nStoreType;
 	char szStore[MAX_PATH];
 	char szDirectory[MAX_PATH];
-	
-#ifdef __APPLE__
-	g_bMac = true;
-#endif
-	sprintf(g_szSlash, (g_bMac ? "/" : "\\"));
 
 	// Read specs for run out of INI file
 	if (argc > 1)
