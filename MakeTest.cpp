@@ -10,7 +10,7 @@
 #include "FileUtil.h"
 
 #define CHUNK_SIZE    4096 // size of file block to be read
-#define FILE_COUNT    500    // number of files to generate
+#define FILE_COUNT    1000    // number of files to generate
 
 #ifdef __APPLE__
 	bool g_bMac = true;
@@ -91,7 +91,7 @@ void ProcessDir(char* szDirName)
 
 	// Process files in this directory
 	if (g_bReport)
-		printf("Processing dir: %s\n", szDirName);
+		printf("Count=%d, Processing dir: %s\n", g_nFiles, szDirName);
 	for (int i = 0; (i < (int) vFiles.size()) && (g_nFiles < FILE_COUNT); i++)
 	{
 		sprintf(szFilePath, "%s%s", szDirName, vFiles[i].c_str());

@@ -16,28 +16,38 @@ mysqlpp::Connection *g_pdbcon1 = NULL;
 mysqlpp::Connection *g_pdbcon2 = NULL;
 
 bool g_bMac = false;
-int  g_nKeyDelta = 5;
-int  g_nSumDelta = 5;
+int  g_nSumToler = 5;
+int  g_nMaxCoeff = 5;
+int  g_nRows = 0;
+int  g_nKeyHits = 0;
+int  g_nSumHits = 0;
+int  g_nIdentical = 0;
 
-#define TAG1   4 // number of fields preceeding 1st tag
+#define MIN_KEY_TOL   1
+#define MIN_SUM_TOL   1
+
+#define COL_SIZE   2 // column index of file size
+#define COL_HASH   3 // column index of file size
+#define COL_TAG1   4 // number of fields preceeding 1st tag
 
 /////////////////////////////////////////////////////////////////////////////
 // SimFind: main() and subroutines
-/*
-void GetSumVector(mysqlpp::Row& row, std::vector<int> &vSums)
+
+bool AreRowsSameFile(mysqlpp::Row& row1, mysqlpp::Row& row2)
 {
-	vSums.clear();
-	int nRows = row.size();
-	for (int i = 3; i < nRows; i++)
-		vSums.push_back( atoi(row.raw_data(i)) );
-}	// GetSumVector
-*/
+	char szPath1[MAX_PATH];
+	char szPath2[MAX_PATH];
+	sprintf(szPath1, "%s%s", row1.raw_data(1), row1.raw_data(0));
+	sprintf(szPath2, "%s%s", row2.raw_data(1), row2.raw_data(0));
+	return AreFilesSame(szPath1, szPath2);
+}	// AreRowsSameFile
+
 
 int ComputeDistance(mysqlpp::Row& row1, mysqlpp::Row& row2)
 {
 	int nDist = 0;
 	int nRows = row1.size();
-	for (int i = TAG1; i < nRows; i++)
+	for (int i = COL_TAG1; i < nRows; i++)
 		nDist += abs( atoi(row1.raw_data(i)) - atoi(row2.raw_data(i)) );
 	return nDist;
 }	// ComputeDistance
@@ -45,16 +55,19 @@ int ComputeDistance(mysqlpp::Row& row1, mysqlpp::Row& row2)
 
 void FindSimilarities(FILE* fp, char* szTable, mysqlpp::Row& row, bool bFindForward)
 {
-	int nKey = atoi(row.raw_data(TAG1-1));
-	int ub = nKey + g_nKeyDelta;
-	int lb = bFindForward ? nKey : nKey - g_nKeyDelta;
+	int nKey = atoi(row.raw_data(COL_HASH));
+	int nFileSize = atoi(row.raw_data(COL_SIZE));
+	int nKeyTolerance = g_nMaxCoeff * nFileSize / g_nSumToler;
+	nKeyTolerance = max(nKeyTolerance, MIN_KEY_TOL);
+	int ub = nKey + nKeyTolerance;
+	int lb = bFindForward ? nKey : nKey - nKeyTolerance;
 
 	mysqlpp::Query query = g_pdbcon2->query();
 	query.reset();
-    query << "SELECT * FROM " << szTable << " WHERE ";
+	query << "SELECT * FROM " << szTable << " WHERE ";
 	query << "hashkey BETWEEN " << lb << " AND " << ub;
 //	printf(query.str().c_str());
-    mysqlpp::ResUse res = query.use();
+	mysqlpp::ResUse res = query.use();
 	if (!res)
 	{
 		printf("FindSimilarities: Failed to find similar rows");
@@ -72,19 +85,39 @@ void FindSimilarities(FILE* fp, char* szTable, mysqlpp::Row& row, bool bFindForw
 					(strcmp(row.raw_data(1), rowsim.raw_data(1)) == 0) )
 				continue;
 
+			g_nKeyHits++;
 			int nDist = ComputeDistance(row, rowsim);
-			if (nDist <= g_nSumDelta)
-			{
-				// Print current "row" for the first time
-				if (!bAddedHeader)
-				{
-					fprintf(fp, "%s\n", row.raw_data(0));
-					bAddedHeader = true;
-				}
+			// Discard files that differ more than 50% in size
+			int nSimSize = atoi(rowsim.raw_data(COL_SIZE));
+			if ( (nSimSize > 3*nFileSize/2) || (nFileSize > 3*nSimSize/2) )
+				continue;
+			// Discard files with too large a sum table distance
+			int nMaxSumDist = (nFileSize+nSimSize)/(g_nSumToler*2);
+			if (nDist > max(nMaxSumDist, MIN_SUM_TOL))
+				continue;
 
-				// Print found similarity
-				fprintf(fp, "  %5d %s\n", nDist, rowsim.raw_data(0));
+			// Files are similar... report
+			g_nSumHits++;
+			// Print current "row" for the first time
+			if (!bAddedHeader)
+			{
+				fprintf(fp, "%s\n", row.raw_data(0));
+				bAddedHeader = true;
 			}
+
+			// Print found similarity
+			if ( (nDist == 0) && AreRowsSameFile(row, rowsim) )
+			{
+				fprintf(fp, "  <same> %s\n", rowsim.raw_data(0));
+				/* // This code removes identical files, should that be desired
+				char szFilePath[MAX_PATH];
+				sprintf(szFilePath, "%s%s", row.raw_data(1), row.raw_data(0));
+				remove(szFilePath);
+				*/
+				g_nIdentical++;
+			}
+			else
+				fprintf(fp, "  %6d %s\n", nDist, rowsim.raw_data(0));
 		}
 	}
 	catch (const mysqlpp::EndOfResults& ){} // thrown when no more rows
@@ -103,10 +136,10 @@ void FindSimilaritiesForOne(FILE* fp, char* szTable, char* szFilePath)
 
 	// Retrieve all rows
 	mysqlpp::Query query = g_pdbcon1->query();
-    query << "SELECT * FROM " << szTable;
+	query << "SELECT * FROM " << szTable;
 	query << " WHERE filename= '" << szFilename << "' AND";
 	query << " directoryname= '" << szDirname << "'";
-    mysqlpp::ResUse res = query.use();
+	mysqlpp::ResUse res = query.use();
 	if (!res)
 	{
 		printf("FindSimilaritiesForOne: Failed to query row");
@@ -127,8 +160,8 @@ void FindSimilaritiesForAll(FILE* fp, char* szTable)
 {
 	// Retrieve all rows
 	mysqlpp::Query query = g_pdbcon1->query();
-    query << "SELECT * FROM " << szTable << " ORDER BY hashkey, filename";
-    mysqlpp::ResUse res = query.use();
+	query << "SELECT * FROM " << szTable << " ORDER BY hashkey, filename";
+	mysqlpp::ResUse res = query.use();
 	if (!res)
 	{
 		printf("FindSimilaritiesForAll: Failed to query rows");
@@ -139,7 +172,12 @@ void FindSimilaritiesForAll(FILE* fp, char* szTable)
 	try
 	{
 		while (row = res.fetch_row())
+		{
 			FindSimilarities(fp, szTable, row, true);
+			if ( (g_nRows % 100 == 0) && g_nRows )
+				printf(" %d", g_nRows);
+			g_nRows++;
+		}
 	}
 	catch (const mysqlpp::EndOfResults& ){} // thrown when no more rows
 }	// FindSimilaritiesForAll
@@ -175,13 +213,13 @@ int main(int argc, char* const argv[])
 	if ((fscanf(fp, "Table=%s\n", szTable) != 1) ||
 		(fscanf(fp, "OutFile=%s\n", szOutFile) != 1) ||
 		(fscanf(fp, "MatchFile=%s\n", szMatchFile) != 1) ||
-		(fscanf(fp, "Tolerance=%d", &g_nSumDelta) != 1) )
+		(fscanf(fp, "Tolerance=%d\n", &g_nSumToler) != 1) ||
+		(fscanf(fp, "MaxTagCoeff=%d", &g_nMaxCoeff) != 1) )
 	{
 		printf("main: Invalid INI file '%s'\n", szSimFindIni);
 		return 1;
 	}
 	fclose(fp);
-	g_nKeyDelta = g_nSumDelta;
 
 	// Open output file for writing
 	fp = fopen(szOutFile, "wt");
@@ -203,10 +241,13 @@ int main(int argc, char* const argv[])
 	else
 		FindSimilaritiesForAll(fp, szTable);
 
+	fprintf(fp, "\nRows in Table    = %d", g_nRows);
+	fprintf(fp, "\nHashKey Matches  = %d", g_nKeyHits);
+	fprintf(fp, "\nSumTable Matches = %d", g_nSumHits);
+	fprintf(fp, "\nIdentical Files  = %d", g_nIdentical);
+
 	fclose(fp);
 	delete g_pdbcon1;
 	delete g_pdbcon2;
 	return 0;
 }
-
-

@@ -20,6 +20,7 @@ void GetDirList(char* szDir, vector<string> &vFiles, vector<string> &vDirs);
 void ExtractFilename(char* szPath, char* szOutFile);
 void ExtractDirname(char* szPath, char* szOutDir);
 void ReplaceSlashes(char* szPath);
+bool AreFilesSame(char* szFile1, char* szFile2);
 
 
 #endif // __FILEUTIL_H__

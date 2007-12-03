@@ -139,7 +139,9 @@ bool CResultsSQL::OpenStore(char* szName, CTags* pTags)
 	}
 	catch (const mysqlpp::EndOfResults& ){} // thrown when no more rows
 
-	//if the table does not exist, then create it and populate the columns from pTags.dwOrigTag
+	//if the table does not exist, then create it and populate the columns
+	// from pTags.dwOrigTag
+	// COLUMNS = (filename, directoryname, filesize, hashkey, [tags])
 	if (!tableExists)
 	{
 		query.reset();

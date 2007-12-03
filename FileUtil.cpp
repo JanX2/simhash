@@ -95,3 +95,67 @@ void ReplaceSlashes(char* szPath)
 }	// ReplaceSlashes
 
 
+#define  CHUNK_SIZE   4096
+// Check if these two files are identical
+bool AreFilesSame(char* szFile1, char* szFile2)
+{
+	// Open files
+	FILE* fp1 = fopen(szFile1, "rb");
+	if (fp1 == NULL)
+	{
+		printf("ProcessFile: failed to load %s\n", szFile1);
+		return false;
+	}
+	FILE* fp2 = fopen(szFile2, "rb");
+	if (fp2 == NULL)
+	{
+		fclose(fp1);
+		printf("ProcessFile: failed to load %s\n", szFile2);
+		return false;
+	}
+
+	// Compute file sizes
+	fseek(fp1 , 0 , SEEK_END);
+	int nSize1 = ftell(fp1);
+	rewind(fp1);
+	fseek(fp2 , 0 , SEEK_END);
+	int nSize2 = ftell(fp2);
+	rewind(fp2);
+	if (nSize1 != nSize2)
+	{
+		fclose(fp1);
+		fclose(fp2);
+		return false;
+	}
+
+	bool bSame = true;
+	int* pBuf1 = (int*) malloc(CHUNK_SIZE+8);
+	int* pBuf2 = (int*) malloc(CHUNK_SIZE+8);
+	while (nSize1 > 0)
+	{
+		//read file chunks into buffers
+		int nRead = min(nSize1, CHUNK_SIZE);
+		fread(pBuf1, 1, nRead, fp1);
+		fread(pBuf2, 1, nRead, fp2);
+		nSize1 -= nRead;
+
+		// Check for similarities
+		int nNumInts = (nRead+3)/4;
+		for (int i = 0; i < nNumInts; i++)
+		{
+			if (pBuf1[i] != pBuf2[i])
+			{
+				bSame = false;
+				nSize1 = 0; // break while loop
+				break;
+			}
+		}
+	}
+
+	fclose(fp1);
+	fclose(fp2);
+	free(pBuf1);
+	free(pBuf2);
+	return bSame;
+}	// AreFilesSame
+
