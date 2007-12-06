@@ -2,6 +2,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 
 #include <iostream>
+#include <math.h>
 #include <errno.h>
 #include "FileUtil.h"
 
@@ -83,6 +84,21 @@ void ExtractDirname(char* szPath, char* szOutDir)
 }	// ExtractDirname
 
 
+// Doesn't include dot
+void ExtractExtension(char* szPath, char* szOutExt)
+{
+	char* szSlashPtr = strrchr(szPath, '\\');
+	if (szSlashPtr == NULL)
+		szSlashPtr = strrchr(szPath, '/');
+	char* szDotPtr = strrchr(szPath, '.');
+
+	if ( (szDotPtr == NULL) || (szDotPtr < szSlashPtr) )
+		sprintf(szOutExt, "");
+	else
+		strcpy(szOutExt, &(szDotPtr[1]));
+}	// ExtractExtension
+
+
 // Replaces all \'s with /'s
 void ReplaceSlashes(char* szPath)
 {
@@ -159,3 +175,25 @@ bool AreFilesSame(char* szFile1, char* szFile2)
 	return bSame;
 }	// AreFilesSame
 
+
+// Returns a float between 0 and 1, (almost certainly) unique to the
+// extension, where all three chars are weighted about equally
+float HashExtension(char* szPath)
+{
+	char szExt[MAX_PATH];
+	ExtractExtension(szPath, szExt);
+	strupr(szExt);
+	int nLen = (int) strlen(szExt);
+	int nTemp, nHash = 0;
+	int nPow35[] = { 1, 35, 1225, 42875 }; // powers of 35
+	for (int i = 0; i < min(3, nLen); i++)
+	{
+		// Shift ASCII code to the 0-35 range
+		nTemp = max(0, szExt[i]-48);
+		if (nTemp >= 17)
+			nTemp -= 7; // shift letters down next to numbers
+		nHash += nTemp * (nPow35[3] + nPow35[i]);
+	}
+	float fHash = ((float)nHash)/4501875.0f; // divide by max possible value
+	return (float) (abs(fHash-0.5)*2.0); // fold 
+}	// HashExtension

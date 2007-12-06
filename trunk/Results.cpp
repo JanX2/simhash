@@ -10,6 +10,8 @@
 #define STRLEN_FILE   16
 #define STRLEN_TAG    8
 
+bool g_bUseExt = true;
+
 /////////////////////////////////////////////////////////////////////////////
 // CResults
 
@@ -53,12 +55,17 @@ void CResults::CloseFile()
 }	// CResults::CloseFile
 
 
-int CResults::ComputeHashKey(CTags* pTags)
+DWORD CResults::ComputeHashKey(CTags* pTags, int nIndex, bool bUseExt)
 {
-	int nKey = 0;
+	DWORD dwKey = 0;
 	for (int i = 0; i < m_nTags; i++)
-		nKey += (m_pnSumTable[i] * pTags->GetTag(i)->nWeight);
-	return nKey;
+		dwKey += (DWORD) ( ((float)m_pnSumTable[i]) * pTags->GetTag(i)->pfWeights[nIndex] );
+	if (bUseExt)
+	{
+		float f = ((float) 0xFFFFFFFF) * HashExtension(m_szFilePath);
+		dwKey = (dwKey % 0x1FFFFFFF) + ((DWORD) f);
+	}
+	return dwKey;
 }	// CResults::ComputeHashKey
 
 
@@ -139,14 +146,20 @@ bool CResultsSQL::OpenStore(char* szName, CTags* pTags)
 	}
 	catch (const mysqlpp::EndOfResults& ){} // thrown when no more rows
 
-	//if the table does not exist, then create it and populate the columns
+	// if the table does not exist, then create it and populate the columns
 	// from pTags.dwOrigTag
-	// COLUMNS = (filename, directoryname, filesize, hashkey, [tags])
+	// COLUMNS = (filename, directoryname, filesize, [hashkeys,] [tags,])
 	if (!tableExists)
 	{
 		query.reset();
 		query << "create table " << szName << " (filename text, ";
-		query << "directoryname text, filesize int, hashkey int" ;
+		query << "directoryname text, filesize int" ;
+		for (int j = 0; j < pTags->GetKeyCount(); j++)
+		{
+			query << ", " << m_pTags->GetKeyName(j) << " text";
+			if (g_bUseExt)
+				query << ", " << m_pTags->GetKeyName(j) << "Ext text";
+		}
 		for (int i = 0; i < m_nTags; i++)
 			query << ", t" << m_pTags->GetTag(i)->dwOrigTag << " int";
 		query << ")";
@@ -194,12 +207,20 @@ void CResultsSQL::CloseFile()
 	ExtractFilename(m_szFilePath, szFilename);
 	ExtractDirname(m_szFilePath, szDirname);
 	ReplaceSlashes(szDirname);
-	
+
+	// Insert file name, path, size
 	mysqlpp::Query query = m_pdbcon->query();
 	query << "insert into " << m_szStoreName;
 	query << " values ('" << szFilename << "', '";
-	query << szDirname << "', " << m_nFileSize << ", ";
-	query << ComputeHashKey(m_pTags);
+	query << szDirname << "', " << m_nFileSize;
+	// Insert hashkeys
+	for (int j = 0; j < m_pTags->GetKeyCount(); j++)
+	{
+		query << ", " << ComputeHashKey(m_pTags, j, false);
+		if (g_bUseExt)
+			query << ", " << ComputeHashKey(m_pTags, j, true);
+	}
+	// Insert sum table entries
 	for (int i = 0; i < m_nTags; i++)
 		query << ", " << m_pnSumTable[i];
 	query << ")";

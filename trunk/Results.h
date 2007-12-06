@@ -42,8 +42,8 @@ public:
 	virtual bool CheckValidDir(char* szDir) { return true; }
 
 protected:
-	int ComputeHashKey(CTags* pTags);
-	void FormatRowBufferTxt();
+	DWORD ComputeHashKey(CTags* pTags, int nIndex, bool bUseExt);
+	void  FormatRowBufferTxt();
 
 	char   m_szStoreName[MAX_PATH];
 	char   m_szFilePath[MAX_PATH];
