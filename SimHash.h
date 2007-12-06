@@ -15,12 +15,12 @@ typedef unsigned short      WORD;
 
 typedef struct BINTAG
 {
-	DWORD dwTag;     // 32 (or fewer)-bit tag to be compared
-	DWORD dwMask;    // encodes bit legnth in a useful way
-	int   nWeight;   // coefficient in linear combo of hit sums
-	int   nLength;   // bit length straight up
-	int   nIgnore;   // number of future bits to ignore
-	DWORD dwOrigTag; // unmodified tag value
+	DWORD  dwTag;     // 32 (or fewer)-bit tag to be compared
+	DWORD  dwMask;    // encodes bit legnth in a useful way
+	int    nLength;   // bit length straight up
+	int    nIgnore;   // number of future bits to ignore
+	DWORD  dwOrigTag; // unmodified tag value
+	float* pfWeights; // coefficient in linear combo of hit sums
 }	BINTAG;
 
 
@@ -45,10 +45,12 @@ public:
 	CTags(char* szTagFile);
 	~CTags();
 
-	bool    IsBigEndian()    { return m_bBigEndian; }
-	int     GetTagCount()    { return m_nTags; }
-	BINTAG* GetTag(int nTag) { return &(m_pTags[nTag]); }
+	bool    IsBigEndian()     { return m_bBigEndian; }
+	int     GetTagCount()     { return m_nTags; }
+	int     GetKeyCount()     { return m_nWeights; }
+	BINTAG* GetTag(int nTag)  { return &(m_pTags[nTag]); }
 	int     MatchBitString(DWORD dwString);
+	const char* GetKeyName(int i) { return m_strKeys[i].c_str(); }
 
 protected:
 	bool ReadTagFile(char* szFilePath);
@@ -57,7 +59,10 @@ protected:
 
 	BINTAG* m_pTags;
 	int     m_nTags;
+	float*  m_pfWeights;
+	int     m_nWeights;
 	bool    m_bBigEndian;
+	vector<string> m_strKeys;
 };
 
 

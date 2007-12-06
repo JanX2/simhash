@@ -42,12 +42,15 @@ CTags::CTags(char* szTagFile)
 
 	m_pTags = NULL;
 	m_nTags = 0;
+	m_pfWeights = NULL;
+	m_nWeights = 0;
 	ReadTagFile(szTagFile);
 }
 
 CTags::~CTags()
 {
 	free(m_pTags);
+	free(m_pfWeights);
 }
 
 
@@ -80,29 +83,57 @@ bool CTags::ReadTagFile(char* szFilePath)
 		return false;
 	}
 
-	// Read tag count out of header
-	if ((fscanf(fp, "%d\n", &m_nTags) != 1) || (m_nTags <= 0))
+	// Read tag & key counts out of header
+	if ((fscanf(fp, "%d, %d,", &m_nTags, &m_nWeights) != 2) || (m_nTags <= 0))
 	{
 		printf("ReadTagFile: Invalid format for tag file header\n");
+		printf("   Format: #TAGS, #KEYS, [key names]\n");
 		fclose(fp);
 		return false;
 	}
 
+	// Read key name(s) out of header
+	int i;
+	m_pfWeights = (float*) calloc(m_nTags*m_nWeights, sizeof(float));
+	char szBuffer[50];
+	for (i = 0; i < m_nWeights; i++)
+	{
+		if ((fscanf(fp, " %s,", szBuffer) != 1))
+			break;
+		int nLen = (int) strlen(szBuffer);
+		if (szBuffer[nLen-1] == ',')
+			szBuffer[nLen-1] = 0;
+		m_strKeys.push_back(szBuffer);
+	}
+	if (i < m_nWeights) // loop broke early due to fscanf error
+	{
+		printf("ReadTagFile: Invalid keyname %d\n", i+1);
+		return false;
+	}
+	fscanf(fp, "\n");
+
 	// Read tags out of file, fill in BINTAG structs
 	m_pTags = (BINTAG*) calloc(m_nTags, sizeof(BINTAG));
-	int i;
 	for (i = 0; i < m_nTags; i++)
 	{
 		// Read tag from file line
-		if ( fscanf(fp, "%x, %x, %d\n",
+		if ( fscanf(fp, "%x, %x",
 				&(m_pTags[i].dwTag),
-				&(m_pTags[i].dwMask),
-				&(m_pTags[i].nWeight)) != 3 )
+				&(m_pTags[i].dwMask)) != 2 )
 			break;
 		
 		m_pTags[i].dwOrigTag = m_pTags[i].dwTag;
 		FixTag( &(m_pTags[i]) );
 		// (*ppOutTags)[i].nIgnore is zero'd by calloc
+
+		// Read weights
+		m_pTags[i].pfWeights = &(m_pfWeights[i*m_nWeights]);
+		for (int j = 0; j < m_nWeights; j++)
+		{
+			if (fscanf(fp, ", %f", &(m_pTags[i].pfWeights[j])) != 1)
+				break;
+		}
+		fscanf(fp, "\n");
 	}
 
 	fclose(fp);

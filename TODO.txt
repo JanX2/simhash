@@ -1,0 +1,12 @@
+
+TODO list:
+
+X. Read multiple key col names and value sets from tag file
+X. Convert weight storage class to 'float'
+X. Store correctly in CTags
+X. Compute and write these keys to db
+X. Compute alternate version of each using extensions
+
+5. Modify SimFind to use these multiple keys
+X. Modify meaning and values of Tolerances
+X. Avoid double-counting (?)
