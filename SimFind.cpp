@@ -22,11 +22,11 @@ bool  g_bReportAll = false;
 // Collected statistics
 int  g_nKeys = 0;
 int  g_nRows = 0; //get from SQL?
+int  g_nIdentical = 0;
+__int64  g_nDataSize = 0;
 int* g_pnKeyHits = NULL;
 int* g_pnCollisions = NULL;
 int* g_pnSumHits = NULL; 
-int  g_nIdentical = 0;
-int  g_nDataSize = 0;
 // thrown out because of size mismatch counter
 vector<string> g_vStrKeys;
 
@@ -41,15 +41,21 @@ int g_i = 0;
 #define COL_KEY1   3  // column index of file size
 int     COL_TAG1 = 4; // number of fields preceeding 1st tag
 
+
+bool g_bReport = true;
+
 /////////////////////////////////////////////////////////////////////////////
 // SimFind: main() and subroutines
 
-void ResetCounters()
+void ResetCounters(bool bResetArrays)
 {
+	if (bResetArrays)
+	{
+		memset(g_pnKeyHits, 0, g_nKeys*sizeof(int));
+		memset(g_pnSumHits, 0, g_nKeys*sizeof(int));
+		memset(g_pnCollisions, 0, g_nKeys*sizeof(int));
+	}
 	g_nRows = 0;
-	memset(g_pnKeyHits, 0, g_nKeys*sizeof(int));
-	memset(g_pnCollisions, 0, g_nKeys*sizeof(int));
-	memset(g_pnSumHits, 0, g_nKeys*sizeof(int));
 	g_nIdentical = 0;
 	g_nDataSize = 0;
 }
@@ -65,24 +71,25 @@ bool AreRowsSameFile(mysqlpp::Row& row1, mysqlpp::Row& row2)
 }	// AreRowsSameFile
 
 
-int ComputeDistance(mysqlpp::Row& row1, mysqlpp::Row& row2)
+DWORD ComputeDistance(mysqlpp::Row& row1, mysqlpp::Row& row2)
 {
-	int nDist = 0;
-	int nRows = row1.size();
+	DWORD dwDist = 0;
+	int nRows = (int) row1.size();
 	for (int i = COL_TAG1; i < nRows; i++)
-		nDist += abs( atoi(row1.raw_data(i)) - atoi(row2.raw_data(i)) );
-	return nDist;
+		dwDist += (DWORD) abs( atoi(row1.raw_data(i)) - atoi(row2.raw_data(i)) );
+	return dwDist;
 }	// ComputeDistance
 
 
 void FindSimilarities(FILE* fp, char* szTable, mysqlpp::Row& row, bool bFindForward)
 {
-	int nKey = atoi(row.raw_data(COL_KEY1+g_i)); //offset for multikeys
-	int nFileSize = atoi(row.raw_data(COL_SIZE));
-	int nKeyTolerance = (int)( ((float)nFileSize) * (g_fSumToler/100.0));
-	nKeyTolerance = max(nKeyTolerance, MIN_KEY_TOL);
-	int ub = nKey + nKeyTolerance;
-	int lb = bFindForward ? nKey : nKey - nKeyTolerance;
+	int nKeyIndex = COL_KEY1+g_i;
+	DWORD dwKeyVal = (DWORD) _atoi64(row.raw_data(nKeyIndex)); //offset for multikeys
+	DWORD dwFileSize = (DWORD) _atoi64(row.raw_data(COL_SIZE));
+	DWORD dwKeyTolerance = (int)( ((float)dwFileSize) * g_fSumToler / 100.0f );
+	dwKeyTolerance = max(dwKeyTolerance, MIN_KEY_TOL);
+	DWORD ub = dwKeyVal + dwKeyTolerance;
+	DWORD lb = bFindForward ? dwKeyVal : dwKeyVal - dwKeyTolerance;
 
 	mysqlpp::Query query = g_pdbcon2->query();
 	query.reset();
@@ -99,32 +106,39 @@ void FindSimilarities(FILE* fp, char* szTable, mysqlpp::Row& row, bool bFindForw
 	mysqlpp::Row rowsim;
 	char szFilePath[MAX_PATH];
 	char szSimPath[MAX_PATH];
-	sprintf(szFilePath, "%s%s", row.raw_data(COL_NAME), row.raw_data(COL_PATH));
+	DWORD dwSimKeyVal;
+	sprintf(szFilePath, "%s%s", row.raw_data(COL_PATH), row.raw_data(COL_NAME));
 	bool bAddedHeader = false;
 	try
 	{
 		while (rowsim = res.fetch_row())
 		{
-			sprintf(szSimPath, "%s%s", rowsim.raw_data(COL_NAME), rowsim.raw_data(COL_PATH));
+			sprintf(szSimPath, "%s%s", rowsim.raw_data(COL_PATH), rowsim.raw_data(COL_NAME));
+			dwSimKeyVal = (DWORD) _atoi64(rowsim.raw_data(nKeyIndex));
 			// NOTE: Our SQL query doesn't filter out the same file.
 			// It also double-counts rows with same key.  This weeds those out.
 			// Hopefully, this works.
-			if ( (nKey == atoi(rowsim.raw_data(COL_KEY1))) &&
-					(strcmp(szSimPath, szFilePath) <= 0) )
+			if ( (dwKeyVal == dwSimKeyVal) && (strcmp(szSimPath, szFilePath) <= 0) )
 				continue;
 
 			g_pnKeyHits[g_i]++;
+			
+			// Count hash key collisions
+			// TODO: Do this BEFORE or AFTER other weed-out checks?
+			if (dwKeyVal == dwSimKeyVal)
+				g_pnCollisions[g_i]++;
+
 			// Discard files that differ more than 50% in size
 			// Perhaps this should be tolerance% of the file?
 			// ***** Add a global to count this 
-			int nSimSize = atoi(rowsim.raw_data(COL_SIZE));
-			if ( (nSimSize > 3*nFileSize/2) || (nFileSize > 3*nSimSize/2) ) 
+			DWORD dwSimSize = (DWORD) _atoi64(rowsim.raw_data(COL_SIZE));
+			if ( (dwSimSize > 3*dwFileSize/2) || (dwFileSize > 3*dwSimSize/2) ) 
 				continue;
 				
 			// Discard files with too large a sum table distance
-			int nDist = ComputeDistance(row, rowsim);
-			int nMaxSumDist = (int) ( ((float)(nFileSize+nSimSize))*0.5*(g_fSumToler/100.0) );
-			if (nDist > max(nMaxSumDist, MIN_SUM_TOL))
+			DWORD dwDist = ComputeDistance(row, rowsim);
+			DWORD dwMaxSumDist = (int) ( ((float)(dwFileSize+dwSimSize) * g_fSumToler / 200.0f) );
+			if (dwDist > max(dwMaxSumDist, MIN_SUM_TOL))
 				continue;
 
 			// Files are similar... report
@@ -136,17 +150,13 @@ void FindSimilarities(FILE* fp, char* szTable, mysqlpp::Row& row, bool bFindForw
 				fprintf(fp, "%s\n", szFilePath);
 				bAddedHeader = true;
 			}
-			
-			// Count hash key collisions
-			if (strcmp(row.raw_data(COL_KEY1), rowsim.raw_data(COL_KEY1)) == 0)
-				g_pnCollisions[g_i]++;
 
 			// Print found similarity
-			if ( false && (nDist == 0) && AreRowsSameFile(row, rowsim) ) //don't print identical
+			if ( false && (dwDist == 0) && AreRowsSameFile(row, rowsim) ) //don't print identical
 			{
 				if (g_bReportAll)
 					fprintf(fp, "  <same> %s\n", szFilePath);
-				/* // This code removes identical files, should that be desired
+				/* // This code deletes identical files, should that be desired
 				char szFilePath[MAX_PATH];
 				sprintf(szFilePath, "%s%s", row.raw_data(1), row.raw_data(0));
 				remove(szFilePath);
@@ -154,7 +164,7 @@ void FindSimilarities(FILE* fp, char* szTable, mysqlpp::Row& row, bool bFindForw
 				g_nIdentical++;
 			}
 			else if (g_bReportAll)
-				fprintf(fp, "  %6d %s\n", nDist, szSimPath);
+				fprintf(fp, "  %6d %s\n", dwDist, szSimPath);
 		}
 	}
 	catch (const mysqlpp::EndOfResults& ){} // thrown when no more rows
@@ -214,7 +224,7 @@ void FindSimilaritiesForAll(FILE* fp, char* szTable)
 			if ( (g_nRows % 100 == 0) && g_nRows )
 				printf(" %d", g_nRows);
 			g_nRows++; // replace with sql query?
-			g_nDataSize += atoi(row.raw_data(COL_SIZE));
+			g_nDataSize += (DWORD) _atoi64(row.raw_data(COL_SIZE));
 		}
 	}
 	catch (const mysqlpp::EndOfResults& ){} // thrown when no more rows
@@ -287,7 +297,8 @@ int main(int argc, char* const argv[])
 	g_pnSumHits = (int*) calloc(g_nKeys, sizeof(int));
 
 	// Open output file for writing
-	if (g_bReportAll) {
+	if (g_bReportAll)
+	{
 		fp = fopen(szOutFile, "wt");
 		if (fp == NULL)
 		{
@@ -315,22 +326,22 @@ int main(int argc, char* const argv[])
 	GetKeyNames(szTable);
 	fprintf(fp2, "# Table = '%s'\n", szTable);
 	fprintf(fp2, "# TOLERANCE ");
-	for (i = 0; i < g_nKeys; i++){
-		fprintf(fp2, "%s ", g_vStrKeys[i].c_str());
-		fprintf(fp2, "SUMHITS ");
-	}
+	for (i = 0; i < g_nKeys; i++)
+		fprintf(fp2, "%s SUMHITS ", g_vStrKeys[i].c_str());
 	fprintf(fp2, "\n");
 	//fprintf(fp2, "SUMHITS\n");
 
 	// Loop through tolerance values (given in percents)
-	float afTols[] = { 3.2f, 1.0f, 0.32f, 0.1f, 0.032f, 0.01f };
+	float afTols[] = { 0.01f }; //{ 3.2f, 1.0f, 0.32f, 0.1f, 0.032f, 0.01f };
 	for (i = 0; i < sizeof(afTols)/sizeof(float); i++) 
 	{
-		ResetCounters();
+		ResetCounters(true);
 		g_fSumToler = afTols[i];
 		fprintf(fp2, "%8f  ", g_fSumToler);
 		
-		for (g_i = 0; g_i < g_nKeys; g_i++){
+		for (g_i = 0; g_i < g_nKeys; g_i++)
+		{
+			ResetCounters(false);
 			// Find file similarities
 			if (strlen(szMatchFile) > 1)
 				FindSimilaritiesForOne(fp, szTable, szMatchFile);
@@ -338,13 +349,16 @@ int main(int argc, char* const argv[])
 				FindSimilaritiesForAll(fp, szTable);
 			fprintf(fp2, "%8d ", g_pnKeyHits[g_i]);
 			fprintf(fp2, "%8d ", g_pnSumHits[g_i]);
+			
+			if (g_bReport)
+				printf("Tolerance = %f, Key = : %d\n", g_fSumToler, g_i+1);
 		}
 		fprintf(fp2, "\n");
 	}
 	
 	fprintf(fp2, "\n# Rows = %d\n", g_nRows);
 	fprintf(fp2, "# Total Size = %d\n", g_nDataSize);
-	fprintf(fp2, "# Identical = %d		\n", g_nIdentical);
+	fprintf(fp2, "# Identical = %d\n", g_nIdentical);
 	for (i = 0; i < g_nKeys; i++)
 		fprintf(fp2, "# '%s' Collisions = %d\n", g_vStrKeys[i].c_str(), g_pnCollisions[i]);
 
