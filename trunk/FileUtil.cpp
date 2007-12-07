@@ -6,6 +6,17 @@
 #include <errno.h>
 #include "FileUtil.h"
 
+#ifdef __APPLE__
+#include <ctype.h>
+void strupr(char* sz)
+{
+	int len = strlen(sz);
+	for (int i = 0; i < len; i++)
+		sz[i] = (char) toupper(sz[i]);
+}
+#endif
+
+
 
 // GetDirList() returns lists of all files and folders in szDir
 #ifdef __APPLE__
@@ -195,5 +206,6 @@ float HashExtension(char* szPath)
 		nHash += nTemp * (nPow35[3] + nPow35[i]);
 	}
 	float fHash = ((float)nHash)/4501875.0f; // divide by max possible value
-	return (float) (abs(fHash-0.5)*2.0); // fold 
+	fHash = (fHash-0.5f)*2.0f;
+	return (fHash < 0 ? -fHash : fHash); 
 }	// HashExtension
