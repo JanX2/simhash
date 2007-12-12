@@ -39,12 +39,17 @@ glevin@cs.ucsc.edu}
 
 \section{Introduction}
 
-As storage capacities become larger it is increasingly difficult to organize and manage growing file systems. Identical copies or older versions of files often become separated and scattered across a directory structure. Consolidating or removing multiple versions of a file becomes desirable. However, deduplication technologies do not extend well to the case where files are not identical. Techniques for identifying similar files could also be useful for classification purposes and as an aid to search.
+As storage capacities become larger it is increasingly difficult to organize and manage growing file systems. Identical copies or older versions of files often become separated and scattered across a directory structure. Consolidating or removing multiple versions of a file becomes desirable. However, deduplication technologies do not extend well to the case where files are not identical. Techniques for identifying similar files could also be useful for classification purposes and as an aid to search.  A standard technique in similarity detection is to map features of a file into some high-dimensional space, and then use distance within this space as a measure of similarity.  Unfortunately, this typically involves computing the distance between all pairs of files, which leads to $O(n^2)$ similarity detection algorithms.  If these file-to-vector mappings could be reduced to a one-dimensional space, then the data points could be sorted in $O(n \log n)$ time, greatly increasing detection speed.
 
-This is a hard problem.
+Our goal, then, would essentially be to create a `similarity hash function.''  Typically, hash functions are designed to minimize collisions (where two different inputs map to the same key value).  With cryptographic hash functions, collisions should be nearly impossible, and further, nearly identical data should hash to very different keys.  Our similarity hash function would have the opposite intent: very similar files should map to very similar, or even the same, hash key, and distance between keys should be some measure of the difference between files.  Of course, ``file size'' is a sort of hash function on files which satisfies these requirements.  However, while similar files are expected to have similar sizes, there is no expectation that just because two files have similar sizes that they should have similar content.  It is not at all clear how to condense information from a file into a more useful one-dimensional key.
+
+While our project attempted this, we ended up relying on auxiliary data used in the eventual calculation of key values to refine our similarity tests.  Our key values are based on counting the occurrences of certain binary strings within a file, and combining these sums.  Unfortunately, the key values still end up being vaguely proportional to file size, and so many false positive matches are still generated.  However, our auxiliary data provides an easy and efficient means of refining our similarity detection.  A refined version of our keys based on file extension gives a much wider spread of key values, and alleviates some of the aforementioned problems.
+
+
 
 
 \section{Semantics of Similarity}
+
 "Similarity" is a vague word. In order for two files to be similar they must share some content, but there are different ways to define that sharing. What about different encodings (ascii vs. unicode, WAV vs AIFF)? What if two files are different sizes, but one consists of, for example, repeated copies of the other one? Within some similarity metric, there needs to be a threshold to determine how close within the metric files need to be to still count as similar. 
 
 We decided to use binary similarity as our metric. Two files are similar if only a small percentage of their raw bit patterns are different. Two files with a size disparity (as in the example above) are implicitly different. We decided on binary similarity because we did not want to focus on one particular filetype (i.e. text documents), 
@@ -54,14 +59,50 @@ headers
 syntax vs. semantics
 
 % This is just an example of a figure......
-% \begin{figure}[h] 
- %\centering
+ \begin{figure}[h] 
+ \centering
 %\includegraphics[height= 4.5in]{CritFig}
-%\label{CritDiag} 
-%\caption{Sample Critical Path}
-%\end{figure}    
+\caption{Sample Critical Path}
+\label{CritDiag} 
+\end{figure}    
+
+
+
 
 \section{Implementation}
+
+Our hash key is based on counting the occurrances of certain binary strings within a file.  The keys, along with certain intermediate data, are stored in a SQL database.  A separate program then queries the database for keys with similar values, and outputs the results.  The particulars of our method are described below.  Our code was written in C++, and developed simultaneously for Windows and Macintosh.  While the code runs equally well on both platforms, we used a Windows machine for primary development and a Mac for most data collection.
+
+\subsection{Computing Hash Keys}
+
+Since our notion of similarity is based on binary similarity, we start by counting the occurrances of various binary strings within the file.  We preselect a set of strings, called {\it Tags}, to search for.  We only use a subset of all possible strings of a given length, as summing matches over all strings would blur file differences.  String size was important, since shorter strings would not represent meaningful patterns, and longer strings would not be expected to occur with meaningful frequency in smaller files.  We chose to use 16 8-bit tags, although we experimented with several different sets of tags.
+
+Our {\tt SimHash} program opens each file in a directory, scans through it, and looks for matches with each of our tags.  A count of matches, or {\it hits}, is kept for each tag, and these are stored in a {\it Sum Table}.  The hash key is then computed as a function of the sum table entries.  We restricted our attention to linear combinations of the sums, although we tried various weighting schemes.  Once this has all been computed, the file name, path, and size, along with its key and all entries in the sum table, are stored as a row in  a MySQL database.  Later on, we added the capacity to compute and store multiple keys per row, so that different sum table weightings could be compared side-by-side.
+
+A variation of the key function was implemented to account for file extensions.  It is not unreasonable to claim that two files are inherently different if they contain different extensions.  Given this, it would be desirable for our hash function to assign very different values to any two files with different extensions.  To this end, we compute a simple hash of the (first three characters of) a file's extention, with a value between o and 1.  The distribution of these values should be fairly uniform across the space of possible extensions.  We then multiply this extension value by {\tt MAX\_INT}, and add that to our previous key value.  Since we only care about the {\it distance} between keys, and not their actual values, this will not affect the relation between files with the same extension, while it will tend to widely separate files of different extensions.  This has the effect of more evenly distributing our key values across the space of 32-bit integers, and making cross-extention key matches very unlikely.
+
+
+
+\subsection{Finding Similarities}
+
+Once the database has been populated with the data from a test directory, we use a second program called {\tt SimFind} to look for similar keys.  One file at a time, we perform a SQL query on its key to find all other key values within a certain tolerance range.  This is only the first level of our similarity filter.  For each file returned in this query, we then compute the distance between their sum tables, which is just the sum of the absolute values of the differences between their entries.  If this distance is within a certain tolerance, then we report the two files as similar.
+
+Essentially, two files are deemed similar if they contain a very similar number of each of our selected tags in their bit patterns.  This method has several strengths and drawbacks.  Because the ordering of the tag matches within a file is not accounted for, rearranging the contents of a file will, up to a point, have little impact on key values and sum tables.  Similarly, adding or removing small pieces of a file will have only a small effect on these values.  Consequently, small changes to a file shouldn't throw off our similarity measure.  Further, the results of our calculations are relatively easy to understand and reason about.  Because ``similarity'' is based on the numerical distance between values, we can easily change the tolerance level for key and sum table distance matches.  Of course, increasing tolerance values both widens the range of similar files found and increases the number of false positives, so a good balance between these must be found.
+
+On the down side, adding more than 1 or 2\% to a fil, will likely confound our notion of similarity, so new versions of files with significant additions will not be detected.  Also, as the order of strings within files is not measured, very different files can be detected as similar if they happen to share too many bit patterns.  In particular, the Law of Large Numbers makes false positives within our key space likely.  Since key similarity is the comparison that could be theoretically performed with an $O(\log n)$ search through a sorted list, an excess of false positives here means a larger number of pair-wise comparisons that must be performed on our sum table, even if those comparisons are computationally minimal.
+
+
+
+\section{Results}
+
+
+
+
+
+ If the content of files were actually random, the Law of Large Numbers suggests the larger files would tend towards greater similarity, as the appearance of various tags would approach some mean.  
+
+
+
 
 \section{Measurements}
 
