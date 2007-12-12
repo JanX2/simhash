@@ -294,12 +294,12 @@ int main(int argc, char* const argv[])
 	int  nStoreType;
 	char szStore[MAX_PATH];
 	char szDirectory[MAX_PATH];
-
+long long foo = atoll("4123456789");
 	// Read specs for run out of INI file
 	if (argc > 1)
 		strcpy(szSimHashIni, argv[1]);
 	else if (g_bMac)
-		sprintf(szSimHashIni, "/Users/ipye/Desktop/cmps221/_hashproj/sub/simhash/MacHash.ini");
+		sprintf(szSimHashIni, "/Users/ipye/Desktop/cmps221/1_hashproj/sub/simhash/MacHash.ini");
 	else
 		sprintf(szSimHashIni, "WinHash.ini");
 
