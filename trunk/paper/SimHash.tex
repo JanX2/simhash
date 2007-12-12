@@ -99,7 +99,28 @@ storage overhead
 *take filesize into account in our thresholds 
 *cross platform compatibility
 *identical files
+
+
+
+
 \section{Results}
+
+The first step of our analysis was to determine how different selections of tags and tag weights affected our results.  The second was to determine how well our scheme worked at detecting similar files and weeding out false positives.  For the first part, we found that an unbalanced scheme where only a few tags were used to compute a key worked best on a realistic file set, although different weighting schemes performed better on contrived data sets.  As for success, our scheme was successful at identifying files that fit our idea of similarity.  False positives were [...].
+
+\subsection{Chosing Tags and Keys}
+
+As mentioned above, we settled on 16 8-bit tags to apply our similarity measure.  In trying to select tags, we noticed that {\tt 0x00} was often the most significant single indicator of file structure.  This is not suprising, as some files are padded with large sections of zeros, while data rich files and text files contain few or no zero bytes.  Other than {\tt 0x00}, an essentially random selection of bytes values seem to perform generally better than contrived or structured tag sets.  We included the ASCII representations of 'e' and 't', as these appeared to be strong indicators of text-based data, and also non-ASCII range bytes which would not be less prevalent in text files.
+
+We also investigated various relative weightings of tags in the calculation of the hash key.  We tried equal and unequal weightings of all tags, as well as giving zero weights to (i.e. ignoring) a large fraction of our tags.  On the whole, this last scheme performed best on real file sets. One measure of key performance was the ratio of key hits to sum table hits.  That is, what fraction of key hits are validated as as actually similar according to the sum table?  The lower this ratio, the lower the presumed false positive rate of the key.  [Figure 42 shows something like this]  Also in this graph, we can see the effects of the File Extention modification to our hash function.  This addition appears to weed out about [20\% of false positives].
+
+
+[look at graphs, discuss in more detail]
+
+
+
+
+
+
 
  If the content of files were actually random, the Law of Large Numbers suggests the larger files would tend towards greater similarity, as the appearance of various tags would approach some mean.  
 
