@@ -1,0 +1,113 @@
+\documentclass[10pt, twocolumn]{article}
+%\pagestyle{plain}
+
+\usepackage{amsfonts}
+\usepackage{graphicx}
+
+
+% This is how to make a comment
+
+% These set the margins on your pages
+%\hoffset=-1in
+%\textwidth=6.5in
+%\topmargin=0in
+%\voffset=-0.75in
+%\textheight=10in
+
+\begin{document}
+
+
+
+\title{SimHash: Hash-based Similarity Detection}
+
+\author{Caitlin Sadowski\\
+University of California, Santa Cruz\\
+supertri@cs.ucsc.edu
+\and
+Greg Levin\\
+University of California, Santa Cruz\\
+glevin@cs.ucsc.edu}
+
+
+%\date{}
+\def\copyrightspace{}
+
+\maketitle
+
+\section{Abstract}
+
+
+\section{Introduction}
+
+As storage capacities become larger it is increasingly difficult to organize and manage growing file systems. Identical copies or older versions of files often become separated and scattered across a directory structure. Consolidating or removing multiple versions of a file becomes desirable. However, deduplication technologies do not extend well to the case where files are not identical. Techniques for identifying similar files could also be useful for classification purposes and as an aid to search.
+
+This is a hard problem.
+
+
+\section{Semantics of Similarity}
+"Similarity" is a vague word. In order for two files to be similar they must share some content, but there are different ways to define that sharing. What about different encodings (ascii vs. unicode, WAV vs AIFF)? What if two files are different sizes, but one consists of, for example, repeated copies of the other one? Within some similarity metric, there needs to be a threshold to determine how close within the metric files need to be to still count as similar. 
+
+We decided to use binary similarity as our metric. Two files are similar if only a small percentage of their raw bit patterns are different. Two files with a size disparity (as in the example above) are implicitly different. We decided on binary similarity because we did not want to focus on one particular filetype (i.e. text documents), 
+
+problems:
+headers
+syntax vs. semantics
+
+% This is just an example of a figure......
+% \begin{figure}[h] 
+ %\centering
+%\includegraphics[height= 4.5in]{CritFig}
+%\label{CritDiag} 
+%\caption{Sample Critical Path}
+%\end{figure}    
+
+\section{Implementation}
+
+\section{Measurements}
+
+%This is an example of a table...... 
+% \begin{table}
+ %\centering
+  %\label{table1}
+%\caption{New-Philo} 
+%\medskip
+ %\begin{tabular} {|c|c|} 
+%\hline
+%granularity & parallelism \\ \hline
+%g = 1 & 1.367\\
+%g = 10 & 3.226\\
+%g = 100 & 3.186\\ \hline
+%\end{tabular}
+%\end{table}
+
+\section{Related Work}
+
+Udi Manber \cite{manber} developed a 
+
+* shingles
+* anchors
+* duplicated blocks
+
+Focusing on text vs. binary
+
+Filetype specific:
+*documents \cite{simFilesDocRep} 
+*software systems \cite{yamamoto2005msl} 
+*plagarism \cite{hoad2003miv} \cite{bernstein}
+*music \cite{welsh99querying}
+
+
+
+\section{Future Work}
+
+There are many ways to extend and build on the ideas presented here. We have experienced significant performance gains without losing possible matches when combining different hashkeys. We could be using a broader range of hashkeys.
+
+Multiple similarity metrics for different filetypes could be combined to have a cohesive file similarity measure for the entire system.
+
+\section{Conclusions}
+
+\section{Acknowledgements}
+
+
+% This MUST go at the end!
+\end{document}
