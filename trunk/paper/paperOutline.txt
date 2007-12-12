@@ -1,0 +1,52 @@
+Abstract
+    overview of idea, issues, motivation, results
+Introduction
+    Why is this important
+    Overview of Hash Functions
+    Overview of what we did
+    "Background"
+Semantics of Similarity
+    Binary Similarity
+        what sorts of files does this work/notwork for?
+Implementation 
+    Overview
+    Processing Files
+        Scanning, Sum Tables
+        HashKey
+        Database
+    Finding Similar Files
+        Key Hits
+        Sum Hits
+    Additions 
+        Multiple Keys
+        More Pairwise testing
+        Identical files
+Results
+    Experimenting with Different Keys
+        Skew
+        Scatter
+        Uniform
+        Ext
+    Experimenting with Different Tag Sets
+    Limitations of our keys
+    Performance
+        SimFind time increase experiment
+Related Work  
+    Finding Similar Files in a Large File System
+    Finding Similar Documents in a Large Document Repository
+    Areas of Research
+        Plagarism detection
+        Deduping
+        Web Stuff
+        Data Cleaning
+        Song matching (cellphone)
+Future Work
+    Extending Our Idea
+        broader range of hashkeys
+    Integrating other ideas
+        ref Future Work
+    Working with different data formats -- adding algorithms
+    Integrating into filesystem (inodes), or as storage
+Other Ideas
+Conclusions
+Bibliography
