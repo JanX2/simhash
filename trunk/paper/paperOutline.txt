@@ -1,24 +1,24 @@
 Abstract
     overview of idea, issues, motivation, results
-Introduction
+--Introduction
     Why is this important
     Overview of Hash Functions
     Overview of what we did
     "Background"
 Semantics of Similarity
-    Binary Similarity
-        what sorts of files does this work/notwork for?
+    --Binary Similarity
+        --what sorts of files does this work/notwork for?
 Implementation 
-    Overview
-    Processing Files
+    --Overview
+    --Processing Files
         Scanning, Sum Tables
         HashKey
         Database
-    Finding Similar Files
+    --Finding Similar Files
         Key Hits
         Sum Hits
     Additions 
-        Multiple Keys
+        --Multiple Keys
         More Pairwise testing
         Identical files
 Results
@@ -29,8 +29,13 @@ Results
         Ext
     Experimenting with Different Tag Sets
     Limitations of our keys
+    Different filesets
     Performance
-        SimFind time increase experiment
+        SimFind time increase experiment 
+            500, 1000, 2000, 4000, 8000 vs. time
+            4k files, 4 bytes
+    Success of our method
+    
 Related Work  
     Finding Similar Files in a Large File System
     Finding Similar Documents in a Large Document Repository

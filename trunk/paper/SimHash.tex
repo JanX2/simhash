@@ -47,7 +47,7 @@ While our project attempted this, we ended up relying on auxiliary data used in 
 
 \section{Semantics of Similarity}
 
-"Similarity" is a vague word. In order for two files to be similar they must share some content, but there are different ways to define that sharing. What about different encodings (ascii vs. unicode, WAV vs AIFF)? What if two files are different sizes, but one consists of, for example, repeated copies of the other one? 
+"Similarity" is a vague word. We take the view that in order for two files to be similar they must share content. However, there are different ways to define that sharing. What about different encodings (ascii vs. unicode, WAV vs AIFF)? What if two files are different sizes, but one consists of, for example, repeated copies of the other one? 
 
 Many previous attempts at file similarity detection have focused on detecting similarity on the \emph{text} \cite{hpDocRepositories, hoad} level. We decided to use \emph{binary} similarity as our metric. Two files are similar if only a small percentage of their raw bit patterns are different. We decided on binary similarity because we did not want to focus on one particular filetype (i.e. text documents) or structure. 
 
@@ -55,7 +55,11 @@ Another issue we do not explore is that of semantic similarity. For example, two
 
 Broder \cite{broder} first made clear the distinction between \emph{resemblance} (when two files resemble each other) and \emph{containment} (when one file is contained inside of another). The focus of SimHash has been on resemblance detection. Two files with a size disparity (as in the example above) are implicitly different; Containment relationships between files do not necessarily make two files 'similar' under our metric.
 
-Within some similarity metric, there needs to be a threshold to determine how close within the metric files need to be to count as similar. 
+In order for files to be similar under our type of metric, they must contain a large number of common pieces. Another dividing point is the granularity and coverage of these pieces. SimHash operates at a very fine granularity (byte or word level). We do not attempt complete coverage; we only care about the portions of the file which match our set of bit patterns.
+
+Within some similarity metric, there needs to be a threshold to determine how close within the metric files need to be to count as similar. We are focused on files which have a strong degree of similarity, ideally within 1-2\% of each other.
+
+Another issue is whether a form of similarity detection is meant to operate on a relative or absolute level. In other words, is the focus retrieving a set of files similar to a given file, or retrieving \emph{all} sets of similar files. SimHash does both.
 
 % This is just an example of a figure......
  \begin{figure}[h] 
@@ -64,9 +68,6 @@ Within some similarity metric, there needs to be a threshold to determine how cl
 \caption{Sample Critical Path}
 \label{CritDiag} 
 \end{figure}    
-
-
-
 
 \section{Implementation}
 
@@ -88,22 +89,70 @@ Once the database has been populated with the data from a test directory, we use
 
 Essentially, two files are deemed similar if they contain a very similar number of each of our selected tags in their bit patterns.  This method has several strengths and drawbacks.  Because the ordering of the tag matches within a file is not accounted for, rearranging the contents of a file will, up to a point, have little impact on key values and sum tables.  Similarly, adding or removing small pieces of a file will have only a small effect on these values.  Consequently, small changes to a file shouldn't throw off our similarity measure.  Further, the results of our calculations are relatively easy to understand and reason about.  Because ``similarity'' is based on the numerical distance between values, we can easily change the tolerance level for key and sum table distance matches.  Of course, increasing tolerance values both widens the range of similar files found and increases the number of false positives, so a good balance between these must be found.
 
-On the down side, adding more than 1 or 2\% to a fil, will likely confound our notion of similarity, so new versions of files with significant additions will not be detected.  Also, as the order of strings within files is not measured, very different files can be detected as similar if they happen to share too many bit patterns.  In particular, the Law of Large Numbers makes false positives within our key space likely.  Since key similarity is the comparison that could be theoretically performed with an $O(\log n)$ search through a sorted list, an excess of false positives here means a larger number of pair-wise comparisons that must be performed on our sum table, even if those comparisons are computationally minimal.
+On the downside, adding more than 1 or 2\% to a fil, will likely confound our notion of similarity, so new versions of files with significant additions will not be detected.  Also, as the order of strings within files is not measured, very different files can be detected as similar if they happen to share too many bit patterns.  In particular, the Law of Large Numbers makes false positives within our key space likely.  Since key similarity is the comparison that could be theoretically performed with an $O(\log n)$ search through a sorted list, an excess of false positives here means a larger number of pair-wise comparisons that must be performed on our sum table, even if those comparisons are computationally minimal.
 
+\subsection{Resource Usage}
 
+storage overhead
 
+*offset so that we do not find the same string repeatedly (example of all 0's) 
+*take filesize into account in our thresholds 
+*cross platform compatibility
+*identical files
 \section{Results}
-
-
-
-
 
  If the content of files were actually random, the Law of Large Numbers suggests the larger files would tend towards greater similarity, as the appearance of various tags would approach some mean.  
 
+% This is just an example of a figure......
+ \begin{figure}[h] 
+ \centering
+\includegraphics[width= 3in]{PairwiseElim.pdf}
+\caption{Fractional reduction in the number of pairwise comparisions needed to establish similarity: Number of hits divided by n choose 2: }
+\label{PairwiseSavings} 
+\end{figure}    
 
+ \begin{figure}[h] 
+ \centering
+\includegraphics[width= 3in]{scatter_circles.pdf}
+\caption{Visualization of Key Space with Uniform and Skewed weighting of sum table entries 
+}
+\label{scatterPoster} 
+\end{figure}   
 
+ \begin{figure}[h] 
+ \centering
+\includegraphics[width= 3in]{skewExtScatter.pdf}
+\caption{Visualization of Key Space with Extensions factored into the Hash Key}
+\label{scatterExtension} 
+\end{figure}   
 
-\section{Measurements}
+ \begin{figure}[h] 
+ \centering
+\includegraphics[width= 3in]{ratioSimDiff.pdf}
+\caption{Comparing effectiveness of different key strategies on a predominantly similar or predominately different fileset.}
+\label{simdiff} 
+\end{figure}   
+
+ \begin{figure}[h] 
+ \centering
+%\includegraphics[width= 3.5in]{PairwiseSavings_Cropped.pdf}
+\caption{}
+\label{performanceTest}
+\end{figure}   
+
+ \begin{figure}[h] 
+ \centering
+%\includegraphics[width= 3.5in]{PairwiseSavings_Cropped.pdf}
+\caption{get together pdf/ps version!}
+\label{headerFiles}
+\end{figure}  
+
+ \begin{figure}[h] 
+ \centering
+%\includegraphics[width= 3.5in]{PairwiseSavings_Cropped.pdf}
+\caption{do the experiment}
+\label{appendData}
+\end{figure}  
 
 %This is an example of a table...... 
 % \begin{table}
@@ -122,7 +171,7 @@ On the down side, adding more than 1 or 2\% to a fil, will likely confound our n
 
 \section{Related Work}
 
-The problem of identifying file similarity is not a new one, although no one seems to have discovered a consistently good general solution. The most relevant paper to SimHash is from 1994 \cite{manber}. There has also been a body of research focusing on redundancy elimination, Much of the research on similarity detection since then has focused on very specific applications and filetypes. This includes:
+The problem of identifying file similarity is not a new one, although no one seems to have discovered a consistently good general solution. The most relevant paper to SimHash is over ten years old \cite{manber}. There has also been a body of research focusing on redundancy elimination, Much of the research on similarity detection since then has focused on very specific applications and filetypes. This includes:
 \begin{itemize}
 \item technical documentation \cite{hpDocRepositories} 
 \item software systems \cite{sourcecode} 
@@ -131,10 +180,11 @@ The problem of identifying file similarity is not a new one, although no one see
 \item web pages \cite{buttler}
 \end{itemize}
 
-Udi Manber \cite{manber} developed a 
-* shingles
-* anchors
-* duplicated blocks
+In most cases, the main goal of redundancy elimination is a reduction in either bandwidth or storage. Redundancy elimination (also "deduplication") can focus on eliminating multiple copies of the same file, or else preventing repeats of specific blocks shared between files. The standard way to identify duplicate blocks is by hashing each block. Venti \cite{venti} is an archival storage system which only stores only one copy of every block. As files are modified, new copies of modified blocks are written to disk, while unmodified blocks are still referenced. Shared or unmodified blocks are identified by comparing hashes of the blocks before writing to disk. LBFS \cite{lbfs} exemplifies a similar idea but focused on bandwidth reduction; when a file is changed, only modified blocks are sent over the network. If redundancy elimination is done at the block (or chunk) level, that provides a coarse-grained method of file similarity; files which share enough identical blocks are similar. Forman et al\cite{hpDocRepositories} took this approach when identifying similar documents in a repository. A natural question when classifying blocks is how to identify block boundaries. The options for this include fixed size chunking (for example, filesystem blocks), fixed size chunking over a sliding window (rsync \cite{rsync}), or some form of dynamic content-based chunking \cite{lbfs}. Content-defined chunking consistently outperforms fixed sized chunking at identifying redundancies, but involves larger time and space overheads  \cite{policroniades2004adr}.
+
+Instead of looking for repeated blocks, delta-encoding works at a finer granularity. Essentially, it uses the difference (or delta) between two files to represent the second one. This is only effective when the two files resemble each other closely (for example, different versions in a version control system. DERD \cite{derd} investigates dynamically identifying similar files (or web pages) and then using delta-encoding to shrink the total footprint of similar pairs. The goal of REBL \cite{rebl} is heavy redundancy elimination with a combination of previous techniques. Identical and similar (content-based) chunks are identified. Identical chunks are removed, and similar chunks are delta-encoded. The remaining chunks are compressed, which essentially is redundancy elimination within one file.
+
+Udi Manber \cite{manber} developed a technique for finding what he calls \emph{approximate fingerprints} of a file. His approach involves the concept of a set of \emph{anchors}, or small patterns of characters. In each file, a checksum of the characters around occurances of each anchor is computed. This set of checksums forms the fingerprints for the file, and is compared against fingerprints for other files when searching for similar files. Our sum table counts are in a similar vein. An important distinction between the two ideas is that we also form one hash key for each file to serve as an initial identification of similar files. 
 
 \section{Future Work}
 
@@ -143,6 +193,8 @@ There are many ways to extend and build on the ideas presented here. We have exp
 Multiple similarity metrics for different filetypes could be combined to have a cohesive file similarity measure for the entire system.
 
 There are few other metrics aside from binary similarity which would extend to the diversity of filetypes available in a system. One other example is metadata about files. We did not use file metadata for file similarity detection because we wanted our code to be cross-platform compatible. We also did not want to get caught up with issues of metadata reliability, and so limited our focus to the actual contents of the file. However, one could imagine adding heuristics for metadata similarity to the mix. 
+
+bloom filters
 
 \section{Conclusions}
 
