@@ -45,18 +45,17 @@ Our goal, then, would essentially be to create a `similarity hash function.''  T
 
 While our project attempted this, we ended up relying on auxiliary data used in the eventual calculation of key values to refine our similarity tests.  Our key values are based on counting the occurrences of certain binary strings within a file, and combining these sums.  Unfortunately, the key values still end up being vaguely proportional to file size, and so many false positive matches are still generated.  However, our auxiliary data provides an easy and efficient means of refining our similarity detection.  A refined version of our keys based on file extension gives a much wider spread of key values, and alleviates some of the aforementioned problems.
 
-
-
-
 \section{Semantics of Similarity}
 
-"Similarity" is a vague word. In order for two files to be similar they must share some content, but there are different ways to define that sharing. What about different encodings (ascii vs. unicode, WAV vs AIFF)? What if two files are different sizes, but one consists of, for example, repeated copies of the other one? Within some similarity metric, there needs to be a threshold to determine how close within the metric files need to be to still count as similar. 
+"Similarity" is a vague word. In order for two files to be similar they must share some content, but there are different ways to define that sharing. What about different encodings (ascii vs. unicode, WAV vs AIFF)? What if two files are different sizes, but one consists of, for example, repeated copies of the other one? 
 
-We decided to use binary similarity as our metric. Two files are similar if only a small percentage of their raw bit patterns are different. Two files with a size disparity (as in the example above) are implicitly different. We decided on binary similarity because we did not want to focus on one particular filetype (i.e. text documents), 
+Many previous attempts at file similarity detection have focused on detecting similarity on the \emph{text} \cite{hpDocRepositories, hoad} level. We decided to use \emph{binary} similarity as our metric. Two files are similar if only a small percentage of their raw bit patterns are different. We decided on binary similarity because we did not want to focus on one particular filetype (i.e. text documents) or structure. 
 
-problems:
-headers
-syntax vs. semantics
+Another issue we do not explore is that of semantic similarity. For example, two text files may use different words but contain the same content in terms of meaning. We focus on syntactic, not semantic, similarity. In the words of Udi Manber, ``we make no effort to \emph{understand} the contents of the files.`` \cite{manber}
+
+Broder \cite{broder} first made clear the distinction between \emph{resemblance} (when two files resemble each other) and \emph{containment} (when one file is contained inside of another). The focus of SimHash has been on resemblance detection. Two files with a size disparity (as in the example above) are implicitly different; Containment relationships between files do not necessarily make two files 'similar' under our metric.
+
+Within some similarity metric, there needs to be a threshold to determine how close within the metric files need to be to count as similar. 
 
 % This is just an example of a figure......
  \begin{figure}[h] 
@@ -123,27 +122,27 @@ On the down side, adding more than 1 or 2\% to a fil, will likely confound our n
 
 \section{Related Work}
 
-Udi Manber \cite{manber} developed a 
+The problem of identifying file similarity is not a new one, although no one seems to have discovered a consistently good general solution. The most relevant paper to SimHash is from 1994 \cite{manber}. There has also been a body of research focusing on redundancy elimination, Much of the research on similarity detection since then has focused on very specific applications and filetypes. This includes:
+\begin{itemize}
+\item technical documentation \cite{hpDocRepositories} 
+\item software systems \cite{sourcecode} 
+\item plagiarism detection \cite{hoad} \cite{bernstein}
+\item music \cite{music}
+\item web pages \cite{buttler}
+\end{itemize}
 
+Udi Manber \cite{manber} developed a 
 * shingles
 * anchors
 * duplicated blocks
-
-Focusing on text vs. binary
-
-Filetype specific:
-*documents \cite{hpDocRepositories} 
-*software systems \cite{sourcecode} 
-*plagarism \cite{hoad} \cite{bernstein}
-*music \cite{music}
-
-
 
 \section{Future Work}
 
 There are many ways to extend and build on the ideas presented here. We have experienced significant performance gains without losing possible matches when combining different hashkeys. We could be using a broader range of hashkeys.
 
 Multiple similarity metrics for different filetypes could be combined to have a cohesive file similarity measure for the entire system.
+
+There are few other metrics aside from binary similarity which would extend to the diversity of filetypes available in a system. One other example is metadata about files. We did not use file metadata for file similarity detection because we wanted our code to be cross-platform compatible. We also did not want to get caught up with issues of metadata reliability, and so limited our focus to the actual contents of the file. However, one could imagine adding heuristics for metadata similarity to the mix. 
 
 \section{Conclusions}
 
