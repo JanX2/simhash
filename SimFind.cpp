@@ -426,14 +426,18 @@ int main(int argc, char* const argv[])
 	//fprintf(fp2, "SUMHITS\n");
 
 	// Loop through tolerance values (given in percents)
-	float afTols[] = { 3.2f, 1.0f, 0.32f, 0.1f, 0.032f, 0.01f };
-	for (i = 0; i < sizeof(afTols)/sizeof(float); i++) 
+	//float afTols[] = { 3.2f, 1.0f, 0.32f, 0.1f, 0.032f, 0.01f };
+	//float afTols[] = {.32f};
+	//float afTols[] = { .01f, .02f, .04f, .08f, .16f, .32f, .64f, 1.28f, 2.56f, 5.12f };
+	//for (i = 0; i < sizeof(afTols)/sizeof(float); i++)  
+	for (float j = .01; j < 6; j*=1.2)
 	{
 		ResetCounters(true);
-		g_fSumToler = afTols[i];
+		//g_fSumToler = afTols[i];
+		g_fSumToler = j;
 		fprintf(fp2, "%8f  ", g_fSumToler);
 		
-		for (g_i = 0; g_i < g_nKeys; g_i++)
+		for (g_i = g_nKeys - 1 ; g_i < g_nKeys; g_i++) //skip every other key w +=2
 		{
 			ResetCounters(false);
 			// Find file similarities
