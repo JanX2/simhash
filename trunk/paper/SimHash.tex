@@ -111,7 +111,13 @@ The first step of our analysis was to determine how different selections of tags
 
 As mentioned above, we settled on 16 8-bit tags to apply our similarity measure.  In trying to select tags, we noticed that {\tt 0x00} was often the most significant single indicator of file structure.  This is not suprising, as some files are padded with large sections of zeros, while data rich files and text files contain few or no zero bytes.  Other than {\tt 0x00}, an essentially random selection of bytes values seem to perform generally better than contrived or structured tag sets.  We included the ASCII representations of 'e' and 't', as these appeared to be strong indicators of text-based data, and also non-ASCII range bytes which would not be less prevalent in text files.
 
-We also investigated various relative weightings of tags in the calculation of the hash key.  We tried equal and unequal weightings of all tags, as well as giving zero weights to (i.e. ignoring) a large fraction of our tags.  On the whole, this last scheme performed best on real file sets. One measure of key performance was the ratio of key hits to sum table hits.  That is, what fraction of key hits are validated as as actually similar according to the sum table?  The lower this ratio, the lower the presumed false positive rate of the key.  [Figure 42 shows something like this]  Also in this graph, we can see the effects of the File Extention modification to our hash function.  This addition appears to weed out about [20\% of false positives].
+We also investigated various relative weightings of tags in the calculation of the hash key.  We tried equal and unequal weightings of all tags, as well as giving zero weights to (i.e. ignoring) a large fraction of our tags.  On the whole, this last scheme performed best on real file sets. One measure of key performance was the ratio of  sum table hits to key hits.  That is, what fraction of key hits are validated as actually similar according to the sum table?  The higher this ratio, the lower the presumed false positive rate of the key.  We also included comparisons using the file extention modification to keys.  Figure [X] shows results of comparing four keys on two distinct file sets.  The Uniform Key has all 16 tags weighted equally, while the Skew Key applies uneven weights to only 4 of the tags, with the {\tt 0x00} tag getting the largest weight (other weightings were tested, but were found to regularly lie between these two extreme weightings).  The ``Similar Files'' set contains a sequence of 4K files, each of which differs in only a few bytes from its predecessor.  Consequently, areas of ``nearby'' files should all be considered similar.  The ``Different Files'' set contains a contrived sample of files from a real file system.  From this set, files with apparent similarities were removed, and all files were truncated to 4K to make results more easily comparable.  That we observe a smaller rate of false positives on a set of similar files is not surprising, since there are simply fewer dissimilar files.  For the somewhat more realistic set of different files, the Skew Key shows better performance.  Other observations confirmed this, and so the Skew Key was adopted as the standard key for future tests.
+
+The next trial demonstrated the value of the file extension key modification.  Figure [X]  shows key hits and sum table hits for the Skew Key, with and without the file extension modification.  The trial was run on 10,364 files from a random selection of directories on an existing Mac filesystem.  To noralize the results, values were divided by $\left( \begin{array}{c} n \\ 2 \end{array} \right)$, the total number of pairs of files is the test set.  Even at a rather high tolerance, the Skew Key with extentions is only reporting a match for about one in 5000 pairs, or about two hits per file.  As an average, this is a very small number of auxiliary comparisons needed to be performed with the sum table.  While this data set is small compared to an entire file systems, the percentage 
+
+
+
+ [Figure 42 shows something like this]  Also in this graph, we can see the effects of the File Extention modification to our hash function.  This addition appears to weed out about [20\% of false positives].
 
 
 [look at graphs, discuss in more detail]
@@ -119,7 +125,9 @@ We also investigated various relative weightings of tags in the calculation of t
 
 
 
+\subsection{Problems}
 
+text vs pdf vs postscript
 
 
  If the content of files were actually random, the Law of Large Numbers suggests the larger files would tend towards greater similarity, as the appearance of various tags would approach some mean.  
