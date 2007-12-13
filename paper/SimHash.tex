@@ -86,6 +86,22 @@ Our {\tt SimHash} program opens each file in a directory, scans through it, and 
 
 A variation of the key function was implemented to account for file extensions.  It is not unreasonable to claim that two files are inherently different if they contain different extensions.  Given this, it would be desirable for our hash function to assign very different values to any two files with different extensions.  To this end, we compute a simple hash of the (first three characters of) a file's extention, with a value between o and 1.  The distribution of these values should be fairly uniform across the space of possible extensions.  We then multiply this extension value by {\tt MAX\_INT}, and add that to our previous key value.  Since we only care about the {\it distance} between keys, and not their actual values, this will not affect the relation between files with the same extension, while it will tend to widely separate files of different extensions.  This has the effect of more evenly distributing our key values across the space of 32-bit integers, and making cross-extention key matches very unlikely.
 
+ \begin{figure}[h] 
+ \centering
+\includegraphics[width= 3in]{scatter_circles.pdf}
+\caption{Visualization of Key Spaces for Uniform and Skew Keys}
+\label{scatterPoster} 
+\end{figure}   
+
+ \begin{figure}[h] 
+ \centering
+\includegraphics[width= 3in]{skewExtScatter.pdf}
+\caption{Visualization of  Skew Key Space with File Extension Modification}
+\label{scatterExtension} 
+\end{figure}   
+
+Figures \ref{scatterPoster} and \ref{scatterExtension} are visualizations of various key spaces, with key values plotted against file sizes.  Figure \ref{scatterPoster} shows the key spaces of the Uniform and Skew keys, with the line $y=x$ plotted for reference.  Note that both key values are roughly proportional to file size, although the Skew Key has a wider variance.  Figure \ref{scatterExtension} shows the Skew Key with file extension modification.  Keys span the full range of 32-bit values, with horizontal stripes representing different file extensions.  It is clear from the picture that key hits between different file types would be highly unusual.
+
 
 
 \subsection{Finding Similarities}
@@ -116,9 +132,23 @@ The first step of our analysis was to determine how different selections of tags
 
 As mentioned above, we settled on 16 8-bit tags to apply our similarity measure.  In trying to select tags, we noticed that {\tt 0x00} was often the most significant single indicator of file structure.  This is not suprising, as some files are padded with large sections of zeros, while data rich files and text files contain few or no zero bytes.  Other than {\tt 0x00}, an essentially random selection of bytes values seem to perform generally better than contrived or structured tag sets.  We included the ASCII representations of 'e' and 't', as these appeared to be strong indicators of text-based data, and also non-ASCII range bytes which would not be less prevalent in text files.
 
-We also investigated various relative weightings of tags in the calculation of the hash key.  We tried equal and unequal weightings of all tags, as well as giving zero weights to (i.e. ignoring) a large fraction of our tags.  On the whole, this last scheme performed best on real file sets. One measure of key performance was the ratio of  sum table hits to key hits.  That is, what fraction of key hits are validated as actually similar according to the sum table?  The higher this ratio, the lower the presumed false positive rate of the key.  We also included comparisons using the file extention modification to keys.  Figure [X] shows results of comparing four keys on two distinct file sets.  The Uniform Key has all 16 tags weighted equally, while the Skew Key applies uneven weights to only 4 of the tags, with the {\tt 0x00} tag getting the largest weight (other weightings were tested, but were found to regularly lie between these two extreme weightings).  The ``Similar Files'' set contains a sequence of 4K files, each of which differs in only a few bytes from its predecessor.  Consequently, areas of ``nearby'' files should all be considered similar.  The ``Different Files'' set contains a contrived sample of files from a real file system.  From this set, files with apparent similarities were removed, and all files were truncated to 4K to make results more easily comparable.  That we observe a smaller rate of false positives on a set of similar files is not surprising, since there are simply fewer dissimilar files.  For the somewhat more realistic set of different files, the Skew Key shows better performance.  Other observations confirmed this, and so the Skew Key was adopted as the standard key for future tests.
+We also investigated various relative weightings of tags in the calculation of the hash key.  We tried equal and unequal weightings of all tags, as well as giving zero weights to (i.e. ignoring) a large fraction of our tags.  On the whole, this last scheme performed best on real file sets. One measure of key performance was the ratio of  sum table hits to key hits.  That is, what fraction of key hits are validated as actually similar according to the sum table?  The higher this ratio, the lower the presumed false positive rate of the key.  We also included comparisons using the file extention modification to keys.  Figure \ref{simdiff} shows results of comparing four keys on two distinct file sets.  The Uniform Key has all 16 tags weighted equally, while the Skew Key applies uneven weights to only 4 of the tags, with the {\tt 0x00} tag getting the largest weight (other weightings were tested, but were found to regularly lie between these two extreme weightings).  The ``Similar Files'' set contains a sequence of 4K files, each of which differs in only a few bytes from its predecessor.  Consequently, areas of ``nearby'' files should all be considered similar.  The ``Different Files'' set contains a contrived sample of files from a real file system.  From this set, files with apparent similarities were removed, and all files were truncated to 4K to make results more easily comparable.  That we observe a smaller rate of false positives on a set of similar files is not surprising, since there are simply fewer dissimilar files.  For the somewhat more realistic set of different files, the Skew Key shows better performance.  Other observations confirmed this, and so the Skew Key was adopted as the standard key for future tests.
 
-The next trial demonstrated the value of the file extension key modification.  Figure [X]  shows key hits and sum table hits for the Skew Key, with and without the file extension modification.  The trial was run on 10,364 files from a random selection of directories on an existing Mac filesystem.  To noralize the results, values were divided by $\left( \begin{array}{c} n \\ 2 \end{array} \right)$, the total number of pairs of files is the test set.  Even at a rather high tolerance, the Skew Key with extentions is only reporting a match for about one in 5000 pairs, or about two hits per file.  As an average, this is a very small number of auxiliary comparisons needed to be performed with the sum table.  While this data set is small compared to an entire file systems, the percentage 
+ \begin{figure}[t] 
+ \centering
+\includegraphics[width= 3in]{ratioSimDiff.pdf}
+\caption{Comparing effectiveness of different key strategies on sets of predominantly similar and predominately different files.}
+\label{simdiff} 
+\end{figure}   
+
+The next trial demonstrated the value of the file extension key modification.  Figure \ref{PairwiseSavings} shows key hits and sum table hits for the Skew Key, with and without the file extension modification.  The trial was run on 10,364 files from a random selection of directories on an existing Mac filesystem.  To noralize the results, values were divided by $\left( \begin{array}{c} n \\ 2 \end{array} \right)$, the total number of pairs of files is the test set.  Even at a rather high tolerance, the Skew Key with extentions is only reporting a match for about one in 5000 pairs, or about two hits per file.  As an average, this is a very small number of auxiliary comparisons needed to be performed with the sum table.  While this data set is small compared to an entire file systems, the percentage 
+
+ \begin{figure}[t] 
+ \centering
+\includegraphics[width= 3in]{PairwiseElim.pdf}
+\caption{Number of key and sum table hits with and without the file extension key modification.  Results are scaled by the total number of file pairs in the file set (i.e. ``n choose 2'').  }
+\label{PairwiseSavings} 
+\end{figure}
 
 
 
@@ -132,11 +162,25 @@ The next trial demonstrated the value of the file extension key modification.  F
 
 \subsection{Problems}
 
-There are a number of problems with our method, although it is not clear if any  generalized similarity measure would address some of these.  One problem we encountered was certain file formats with very large headers.  Postscript is an example of this.  We took 200 randomly generated 4K ASCII files (which should have no more similarity than would be predicted by the averaging effects of the Law of Large Numbers), and then converted them to both PDF and Postscript.  The results of applying the Skew Key to these three sets is shown in Figure [x].  Notice the increase in similarity matches as we move from text to PDF to Postscript.  This is due to common headers and file padding in the more complex file formats.  For example, 4K of raw text translates into a 12K PDF, and an enormous 252K Postscript file.  Obviously, the majority of the file is non-content related, and so two Postscript files with entirely different data will still be remarkably similar.  This makes detecting differences in data problematic.  A potential solution would be to manually set the tolerance levels for different file formats.  A very low tolerance setting for Postscript extensions would rule out similarity for differences that amount to only a very small percentage of the file size.
+There are a number of problems with our method, although it is not clear if any  generalized similarity measure would address some of these.  One problem we encountered was certain file formats with very large headers.  Postscript is an example of this.  We took 200 randomly generated 4K ASCII files (which should have no more similarity than would be predicted by the averaging effects of the Law of Large Numbers), and then converted them to both PDF and Postscript.  The results of applying the Skew Key to these three sets is shown in Figure \ref{headerFiles}.  The exact same text content is identified as ``similar'' at much lower tolerance levels for the Postscript versions of files than it is for PDF or raw text.  This is due to common headers and file padding in the more complex file formats.  For example, 4K of raw text translates into a 12K PDF, and an enormous 252K Postscript file.  Obviously, the majority of the file is non-content related, and so two Postscript files with entirely different data will still be remarkably similar.  This makes detecting differences in data problematic.  A potential solution would be to manually set the tolerance levels for different file formats.  A very low tolerance setting for Postscript extensions would rule out similarity for differences that amount to only a very small percentage of the file size.
 
-Another problem we haven't addressed well is scale.  Due to time and computing constraints, we have only used a maximum test set of 10000 files.  As the presumed environment for similarity detection would be file systems of potentially millions of files, it is not immediately obvious how well our results scale.  We have made an attempt to test this, however.  We ran our {\tt SimFind} process on sets of similar files that ranged in size from 500 to 8000, and timed the results.  The results are shown in figure [X].  A quadratic curve is plotted for reference, and our time growth does appear to be $O(n^2)$.  This is exactly the sort of prohibitive growth that the hash key method is intended to avoid.  However, we must keep in mind that these are sets of very similar files, where numerous key hits are expected.  It should only take $O(\log n)$ time to determine the {\tt number} of key matches against a file, but if the number of matches is proportional to the total number of files, then we will need to perform $O(n)$ sum table comparisons for each file.  $O(n^2)$ growth may be unavoidable.  However, within a typical file system, it may be the case that the number of files that actually generate key hits against a single file is a tiny fraction of the overall file count.  If we are lucky, this fraction would small enough to make the constant on the $O(n^2)$ of a manageable size, so that our method would be still be efficient in practice.  In any case, it was not our expectation that key hits by themselves would provide a reliable measure of similarity.  Instead, we expected that they would provide a strong filter which would greatly reduce the number of pair-wise comparisons subsequently needed.
+ \begin{figure}[t] 
+ \centering
+\includegraphics[width= 3in]{fileFormats.pdf}
+\caption{Sum table hits for 200 randomly generated ASCII files, with data converted to PDF and Postscript formats.  Large file headers in Postscript cause the same content to be identified as similar at much lower tolerance levels.}
+\label{headerFiles}
+\end{figure}
 
-A final difficulty that we have not yet come to terms with is the relation between key and sum table hits.  Sum table hits represent a much more accurate measure of similarity.  Ideally, if sum table comparisons would label two files as similar, then those two files should pass the key similarity test.  In practice, however, this ideal may not be desirable.  Consider the Uniform Key, where all tags are given equal weights.  If two files have a sum table distance of 20, then the differences in their keys would lie somewhere between 0 and 20 (0 when the {\it number} of sum table hits is the same for both, and 20 when one sum table is larger than the other in every element).  If our sum table tolerance is 20, then this should also be our key hit tolerance, to allow all possible sum table hits to be checked.  However, only in the extreme case is this high a key tolerance necessary.  It may be that a key tolerance of 15 only eliminates 10\% of our sum table hits, but reduces the number of false positives by 40\%.  This trade-off for performance vs. accuracy may be acceptable or even desirable.  More work would be required to explore the interaction of these two tolerances, and their actual values would probably be set based on the needs of a given implementation environment.
+Another problem we haven't addressed well is scale.  Due to time and computing constraints, we have only used a maximum test set of 10000 files.  As the presumed environment for similarity detection would be file systems of potentially millions of files, it is not immediately obvious how well our results scale.  We have made an attempt to test this, however.  We ran our {\tt SimFind} process on sets of similar files that ranged in size from 500 to 8000, and timed the results.  The results are shown in Figure \ref{performanceTest}  A quadratic curve is plotted for reference, and our time growth does appear to be $O(n^2)$.  This is exactly the sort of prohibitive growth that the hash key method is intended to avoid.  However, we must keep in mind that these are sets of very similar files, where numerous key hits are expected.  It should only take $O(\log n)$ time to determine the {\tt number} of key matches against a file, but if the number of matches is proportional to the total number of files, then we will need to perform $O(n)$ sum table comparisons for each file.  $O(n^2)$ growth may be unavoidable.  However, within a typical file system, it may be the case that the number of files that actually generate key hits against a single file is a tiny fraction of the overall file count.  If we are lucky, this fraction would small enough to make the constant on the $O(n^2)$ of a manageable size, so that our method would be still be efficient in practice.  In any case, it was not our expectation that key hits by themselves would provide a reliable measure of similarity.  Instead, we expected that they would provide a strong filter which would greatly reduce the number of pair-wise comparisons subsequently needed.
+
+ \begin{figure}[t] 
+ \centering
+\includegraphics[width= 3in]{performance.pdf}
+\caption{Run time versus file count for SimFind on sets of similar files, with a quadratic curve plotted for reference.}
+\label{performanceTest}
+\end{figure}
+
+A final difficulty that we have not yet come to terms with is the relation between key and sum table hits.  Sum table hits represent a much more accurate measure of similarity.  Ideally, if sum table comparisons would label two files as similar, then those two files should pass the key similarity test.  In practice, however, this ideal may not be desirable.  Consider the Uniform Key, where all tags are given equal weights.  If two files have a sum table distance of 20, then the differences in their keys would lie somewhere between 0 and 20 (0 when the {\it number} of sum table hits is the same for both, and 20 when one sum table is larger than the other in every element).  If our sum table tolerance is 20, then this should also be our key hit tolerance, to allow all possible sum table hits to be checked.  However, only in the extreme case is this high a key tolerance necessary.  It may be that a key tolerance of 15 only eliminates 10\% of our sum table hits, but reduces the number of false positives by 40\%.  (This phenomenon is visible in Figure \ref{PairwiseSavings}, where the improved key with extensions admits fewer sum table hits.)  The trade-off for performance vs. accuracy may be acceptable or even desirable.  More work would be required to explore the interaction of these two tolerances, and their actual values would probably be set based on the needs of a given implementation environment.
 
 
 
@@ -146,50 +190,6 @@ large key:sum hit ratio,
 
 
  If the content of files were actually random, the Law of Large Numbers suggests the larger files would tend towards greater similarity, as the appearance of various tags would approach some mean.  
-
-% This is just an example of a figure......
- \begin{figure}[h] 
- \centering
-\includegraphics[width= 3in]{PairwiseElim.pdf}
-\caption{Fractional reduction in the number of pairwise comparisions needed to establish similarity: Number of hits divided by n choose 2: }
-\label{PairwiseSavings} 
-\end{figure}    
-
- \begin{figure}[h] 
- \centering
-\includegraphics[width= 3in]{scatter_circles.pdf}
-\caption{Visualization of Key Space with Uniform and Skewed weighting of sum table entries 
-}
-\label{scatterPoster} 
-\end{figure}   
-
- \begin{figure}[h] 
- \centering
-\includegraphics[width= 3in]{skewExtScatter.pdf}
-\caption{Visualization of Key Space with Extensions factored into the Hash Key}
-\label{scatterExtension} 
-\end{figure}   
-
- \begin{figure}[h] 
- \centering
-\includegraphics[width= 3in]{ratioSimDiff.pdf}
-\caption{Comparing effectiveness of different key strategies on a predominantly similar or predominately different fileset.}
-\label{simdiff} 
-\end{figure}   
-
- \begin{figure}[h] 
- \centering
-\includegraphics[width= 3in]{performance.pdf}
-\caption{TODO}
-\label{performanceTest}
-\end{figure}   
-
- \begin{figure}[h] 
- \centering
-\includegraphics[width= 3in]{fileFormats.pdf}
-\caption{TODO}
-\label{headerFiles}
-\end{figure}  
 
 %This is an example of a table...... 
 % \begin{table}
