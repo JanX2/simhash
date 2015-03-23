@@ -1,0 +1,1 @@
+Create a "hash" function which hashes similar files to similar keys
